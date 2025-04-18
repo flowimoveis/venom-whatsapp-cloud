@@ -1,19 +1,65 @@
-const venom = require('venom-bot');
 const express = require('express');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // certifique-se de ter instalado
+const venom = require('venom-bot');
 
-let client;
+const app = express();
+app.use(bodyParser.json());
 
+let client; // será inicializado pelo Venom
+
+// Health check
+app.get('/', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// Evita erro 502 no favicon
+app.get('/favicon.ico', (req, res) => {
+  res.sendStatus(204);
+});
+
+// Envio de mensagens via HTTP
+app.post('/send', async (req, res) => {
+  const { phone, message } = req.body;
+  if (!phone || !message) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Telefone e mensagem são obrigatórios.' });
+  }
+  try {
+    await client.sendText(`${phone}@c.us`, message);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erro ao enviar mensagem via bot:', error);
+    return res.status(500).json({ success: false, error: error.toString() });
+  }
+});
+
+// Inicia o servidor HTTP
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
+
+// Inicia o Venom‑bot
 venom
-  .create({ session: 'bot-session', headless: true })
+  .create({
+    session: 'bot-session',
+    headless: true,
+    useChrome: true
+  })
   .then((c) => {
     client = c;
-    startBot(c);
+    console.log('✅ Bot autenticado e pronto para receber mensagens.');
+    startBotListeners(c);
   })
-  .catch((e) => console.error('❌ Erro ao iniciar o bot:', e));
+  .catch((e) => {
+    console.error('❌ Erro ao iniciar o bot:', e);
+    process.exit(1);
+  });
 
-function startBot(client) {
+// Função que registra o listener de mensagens recebidas
+function startBotListeners(client) {
   client.onMessage(async (msg) => {
     if (msg.isGroupMsg || !msg.body) return;
 
@@ -24,11 +70,14 @@ function startBot(client) {
     };
 
     try {
-      const response = await fetch('https://flowimoveis.app.n8n.cloud/webhook/fa8b2f28-34ef-4fbe-add6-446c64cf1fb2', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        'https://flowimoveis.app.n8n.cloud/webhook/fa8b2f28-34ef-4fbe-add6-446c64cf1fb2',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
 
       if (!response.ok) {
         console.error('❌ Erro ao enviar dados para o n8n:', await response.text());
@@ -40,27 +89,3 @@ function startBot(client) {
     }
   });
 }
-
-const app = express();
-app.use(bodyParser.json());
-
-app.post('/send', async (req, res) => {
-  const { phone, message } = req.body;
-
-  if (!phone || !message) {
-    return res.status(400).json({ success: false, error: 'Telefone e mensagem são obrigatórios.' });
-  }
-
-  try {
-    await client.sendText(`${phone}@c.us`, message);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('❌ Erro ao enviar mensagem via bot:', error);
-    res.status(500).json({ success: false, error: error.toString() });
-  }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(` Servidor rodando na porta ${PORT}`);
-});
