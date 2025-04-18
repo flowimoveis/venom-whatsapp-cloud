@@ -1,5 +1,6 @@
 # Use uma imagem leve do Node.js
-FROM node:22.14.0‑slim
+FROM node:22.14.0-slim
+
 
 # Instala o Chromium via apt (muito mais rápido que o download do Puppeteer)
 RUN apt-get update && \
