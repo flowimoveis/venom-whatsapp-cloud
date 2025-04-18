@@ -1,25 +1,18 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch'); // certifique-se de ter instalado
+const fetch = require('node-fetch');
 const venom = require('venom-bot');
 
 const app = express();
 app.use(bodyParser.json());
 
-// Favicon
+// Evita erro 502 no favicon (Apenas uma vez!)
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
-let client; // será inicializado pelo Venom
-
 // Health check
-app.get('/', (req, res) => {
-  res.status(200).send('OK');
-});
+app.get('/', (req, res) => res.status(200).send('OK'));
 
-// Evita erro 502 no favicon
-app.get('/favicon.ico', (req, res) => {
-  res.sendStatus(204);
-});
+let client;
 
 // Envio de mensagens via HTTP
 app.post('/send', async (req, res) => {
@@ -61,17 +54,14 @@ venom
     process.exit(1);
   });
 
-// Função que registra o listener de mensagens recebidas
 function startBotListeners(client) {
   client.onMessage(async (msg) => {
     if (msg.isGroupMsg || !msg.body) return;
-
     const data = {
       telefone: msg.from,
       mensagem: msg.body,
       nome: msg.sender?.pushname || ''
     };
-
     try {
       const response = await fetch(
         'https://flowimoveis.app.n8n.cloud/webhook/fa8b2f28-34ef-4fbe-add6-446c64cf1fb2',
@@ -81,7 +71,6 @@ function startBotListeners(client) {
           headers: { 'Content-Type': 'application/json' }
         }
       );
-
       if (!response.ok) {
         console.error('❌ Erro ao enviar dados para o n8n:', await response.text());
       } else {
