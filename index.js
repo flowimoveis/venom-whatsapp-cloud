@@ -38,23 +38,21 @@ app.listen(PORT, () => {
 });
 
 // Inicia o Venom‑bot
-// Depois: aponta para o volume montado em /app/tokens
-venom
-  .create({
-    session: '/app/tokens/bot-session',
-    headless: true,
-    useChrome: true
-  })
+venom.create({
+  session: '/app/tokens/bot-session',
+  headless: true,
+  useChrome: true
+})
+.then(c => {
+  client = c;
+  console.log('✅ Bot autenticado e pronto.');
+  startBotListeners(c);
+})
+.catch(e => {
+  console.error('❌ Erro ao iniciar o bot:', e);
+  process.exit(1);
+});
 
-  .then((c) => {
-    client = c;
-    console.log('✅ Bot autenticado e pronto para receber mensagens.');
-    startBotListeners(c);
-  })
-  .catch((e) => {
-    console.error('❌ Erro ao iniciar o bot:', e);
-    process.exit(1);
-  });
 
 function startBotListeners(client) {
   client.onMessage(async (msg) => {
