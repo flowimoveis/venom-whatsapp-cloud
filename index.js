@@ -6,9 +6,6 @@ const venom = require('venom-bot');
 const app = express();
 app.use(bodyParser.json());
 
-// Health check
-app.get('/', (req, res) => res.status(200).send('OK'));
-
 // Favicon
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
