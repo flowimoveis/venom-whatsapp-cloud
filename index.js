@@ -38,12 +38,14 @@ app.listen(PORT, () => {
 });
 
 // Inicia o Venom‑bot
+// Depois: aponta para o volume montado em /app/tokens
 venom
   .create({
-    session: 'bot-session',
+    session: '/app/tokens/bot-session',
     headless: true,
     useChrome: true
   })
+
   .then((c) => {
     client = c;
     console.log('✅ Bot autenticado e pronto para receber mensagens.');
