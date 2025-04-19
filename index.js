@@ -14,7 +14,27 @@ app.use((req, res, next) => {
   });
 });
 // 2️⃣ Middleware de parsing padrão
-app.use(bodyParser.json());
+// Substitua o bodyParser padrão por este bloco
+app.use(bodyParser.json({
+  strict: true,
+  verify: (req, _res, buf) => {
+    try {
+      JSON.parse(buf);
+    } catch (e) {
+      console.error('❌ JSON inválido recebido:', buf.toString());
+      throw e;
+    }
+  }
+}));
+
+// Handler de erro para JSON mal‑formado
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, error: 'JSON inválido' });
+  }
+  next(err);
+});
+
 
 // Evita erro 502 no favicon (Apenas uma vez!)
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
