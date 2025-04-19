@@ -4,6 +4,16 @@ const fetch = require('node-fetch');
 const venom = require('venom-bot');
 
 const app = express();
+// 1️⃣ Middleware de logging do corpo bruto
+app.use((req, res, next) => {
+  let raw = '';
+  req.on('data', chunk => raw += chunk);
+  req.on('end', () => {
+    if (raw) console.log('📥 RAW BODY:', raw);
+    next();
+  });
+});
+// 2️⃣ Middleware de parsing padrão
 app.use(bodyParser.json());
 
 // Evita erro 502 no favicon (Apenas uma vez!)
