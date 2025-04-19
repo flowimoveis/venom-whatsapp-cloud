@@ -45,21 +45,22 @@ app.get('/', (req, res) => res.status(200).send('OK'));
 let client;
 
 // Envio de mensagens via HTTP
-app.post('/send', async (req, res) => {
-  const { phone, message } = req.body;
+// Suporte a GET /send?phone=55xxx&message=Olá%20... para teste simples
+app.get('/send', async (req, res) => {
+  const phone   = req.query.phone;
+  const message = req.query.message;
   if (!phone || !message) {
-    return res
-      .status(400)
-      .json({ success: false, error: 'Telefone e mensagem são obrigatórios.' });
+    return res.status(400).json({ success: false, error: 'Telefone e mensagem são obrigatórios.' });
   }
   try {
     await client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (error) {
-    console.error('❌ Erro ao enviar mensagem via bot:', error);
+    console.error('❌ Erro no GET /send:', error);
     return res.status(500).json({ success: false, error: error.toString() });
   }
 });
+
 
 // Inicia o servidor HTTP
 const PORT = process.env.PORT || 3000;
