@@ -1,14 +1,16 @@
 // index.js - Servidor Express + Venom Bot
 
+require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
 const venom = require('venom-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 let client;
 
-// 1️⃣ Middleware: parse JSON automaticamente e log do body
+// 1️⃣ Middleware: parse JSON com verificação e log do body
 app.use(express.json({
   strict: true,
   verify: (req, _res, buf) => {
@@ -21,7 +23,7 @@ app.use(express.json({
   }
 }));
 app.use((req, res, next) => {
-  if (req.method === 'POST' && req.body) {
+  if (req.method === 'POST') {
     console.log('📥 RAW BODY:', JSON.stringify(req.body));
   }
   next();
@@ -32,34 +34,28 @@ app.use((req, res, next) => {
 // Health check
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-// Envio de mensagem: suporta GET e POST para facilidade de teste
-app.route('/send')
-  .get(async (req, res) => {
-    const { phone, message } = req.query;
-    if (!phone || !message) {
-      return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
-    }
-    try {
-      await client.sendText(`${phone}@c.us`, message);
-      return res.json({ success: true });
-    } catch (err) {
-      console.error('❌ Erro GET /send:', err);
-      return res.status(500).json({ success: false, error: err.toString() });
-    }
-  })
-  .post(async (req, res) => {
-    const { phone, message } = req.body;
-    if (!phone || !message) {
-      return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
-    }
-    try {
-      await client.sendText(`${phone}@c.us`, message);
-      return res.json({ success: true });
-    } catch (err) {
-      console.error('❌ Erro POST /send:', err);
-      return res.status(500).json({ success: false, error: err.toString() });
-    }
-  });
+// Handler único para GET e POST /send
+async function sendHandler(req, res) {
+  const isGet = req.method === 'GET';
+  const phone = isGet ? req.query.phone : req.body.phone;
+  const message = isGet ? req.query.message : req.body.message;
+
+  if (!phone || !message) {
+    return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
+  }
+
+  try {
+    await client.sendText(`${phone}@c.us`, message);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
+    return res.status(500).json({ success: false, error: err.toString() });
+  }
+}
+
+// Rotas de envio
+app.get('/send', sendHandler);
+app.post('/send', sendHandler);
 
 // 3️⃣ Inicializa Venom Bot e inicia o servidor em seguida
 venom
@@ -80,17 +76,21 @@ venom
         mensagem: msg.body,
         nome: msg.sender?.pushname || ''
       };
+
+      if (!N8N_WEBHOOK_URL) {
+        console.warn('⚠️ N8N_WEBHOOK_URL não definido no .env');
+        return;
+      }
+
       try {
-        const response = await fetch(
-          'https://flowimoveis.app.n8n.cloud/webhook/fa8b2f28-34ef-4fbe-add6-446c64cf1fb2?type=production',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          }
-        );
+        const response = await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
         if (!response.ok) {
-          console.error('❌ N8N webhook error:', await response.text());
+          const text = await response.text();
+          console.error('❌ N8N webhook error:', response.status, text);
         } else {
           console.log('✅ Dados enviados ao n8n.');
         }
