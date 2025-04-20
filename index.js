@@ -1,13 +1,14 @@
 // index.js - Servidor Express + Venom Bot
 
 const express = require('express');
+const fetch = require('node-fetch');
 const venom = require('venom-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 let client;
 
-// 1️⃣ Middleware: parse JSON automáticamente e log do body
+// 1️⃣ Middleware: parse JSON automaticamente e log do body
 app.use(express.json({
   strict: true,
   verify: (req, _res, buf) => {
@@ -81,7 +82,7 @@ venom
       };
       try {
         const response = await fetch(
-          'https://flowimoveis.app.n8n.cloud/webhook/fa8b2f28-34ef-4fbe-add6-446c64cf1fb2',
+          'https://flowimoveis.app.n8n.cloud/webhook/fa8b2f28-34ef-4fbe-add6-446c64cf1fb2?type=production',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
