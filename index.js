@@ -1,8 +1,7 @@
 // index.js - Servidor Express + Venom Bot
 
-// Carrega variáveis de ambiente
+// 0️⃣ Carrega variáveis de ambiente
 require('dotenv').config();
-// Log de debug para verificar se a variável foi carregada
 console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL: process.env.N8N_WEBHOOK_URL });
 
 const express = require('express');
@@ -14,33 +13,35 @@ const PORT = process.env.PORT || 3000;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 let client;
 
-// 1️⃣ Middleware: parse JSON com verificação e log do body
+// 1️⃣ Middleware: parse JSON com verificação de sintaxe
 app.use(express.json({
   strict: true,
-  verify: (req, _res, buf) => {
+  verify(req, _res, buf) {
     try {
       JSON.parse(buf);
-  } catch (err) {
-    console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    console.error(err.stack || JSON.stringify(err, null, 2));
-    const message = err instanceof Error ? err.message : JSON.stringify(err);
-    return res.status(500).json({ success: false, error: message });
-  }
+    } catch (err) {
+      console.error('❌ JSON inválido recebido:', buf.toString());
+      throw err;
+    }
+  },
 }));
-app.use((req, res, next) => {
+
+// 2️⃣ Middleware de logging do body bruto (após parse)
+app.use((req, _res, next) => {
   if (req.method === 'POST' && req.body) {
     console.log('📥 RAW BODY:', JSON.stringify(req.body));
   }
   next();
 });
 
-// Health Check
+// Health check
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-// 2️⃣ Handler único para GET e POST /send
+// 3️⃣ Handler único para GET e POST /send
 async function sendHandler(req, res) {
   const isGet = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
+
   const phone = isGet ? req.query.phone : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
@@ -53,18 +54,24 @@ async function sendHandler(req, res) {
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    return res.status(500).json({ success: false, error: err.toString() });
+    console.error(err.stack || err);
+    return res.status(500).json({ success: false, error: err.message || err.toString() });
   }
 }
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// 3️⃣ Inicializa Venom Bot e inicia o servidor em seguida
+// 4️⃣ Inicia o servidor HTTP imediatamente
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
+
+// 5️⃣ Inicializa o Venom Bot e adiciona listener
 venom
   .create({
     session: '/app/tokens/bot-session',
     headless: true,
-    useChrome: true
+    useChrome: true,
   })
   .then((c) => {
     client = c;
@@ -77,7 +84,7 @@ venom
       const payload = {
         telefone: msg.from,
         mensagem: msg.body,
-        nome: msg.sender?.pushname || ''
+        nome: msg.sender?.pushname || '',
       };
 
       if (!N8N_WEBHOOK_URL) {
@@ -89,7 +96,7 @@ venom
         const response = await fetch(N8N_WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
         });
         if (!response.ok) {
           const text = await response.text();
@@ -101,9 +108,6 @@ venom
         console.error('❌ Falha ao enviar ao n8n:', err);
       }
     });
-
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    app.listen(PORT);
   })
   .catch((err) => {
     console.error('❌ Erro ao iniciar Venom Bot:', err);
