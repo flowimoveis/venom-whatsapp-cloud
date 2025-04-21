@@ -7,7 +7,8 @@ const venom = require('venom-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const N8N_WEBHOOK_URL = https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085;
+// Buscando a URL do webhook do n8n a partir da variável de ambiente
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 let client;
 
 // 1️⃣ Middleware: parse JSON com verificação e log do body
@@ -23,7 +24,7 @@ app.use(express.json({
   }
 }));
 app.use((req, res, next) => {
-  if (req.method === 'POST') {
+  if (req.method === 'POST' && req.body) {
     console.log('📥 RAW BODY:', JSON.stringify(req.body));
   }
   next();
