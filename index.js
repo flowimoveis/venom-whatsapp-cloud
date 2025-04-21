@@ -34,7 +34,7 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check
+// Health check (sempre ativo)
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
 // 3️⃣ Handler único para GET e POST /send
@@ -49,24 +49,30 @@ async function sendHandler(req, res) {
     return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
   }
 
+  if (!client) {
+    console.error('❌ Bot ainda não inicializado.');
+    return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
+  }
+
   try {
     await client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
     console.error(err.stack || err);
-    return res.status(500).json({ success: false, error: err.message || err.toString() });
+    const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+    return res.status(500).json({ success: false, error: errorMessage });
   }
 }
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// 4️⃣ Inicia o servidor HTTP imediatamente
+// 4️⃣ Inicia o servidor HTTP imediatamente antes do Venom
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// 5️⃣ Inicializa o Venom Bot e adiciona listener
+// 5️⃣ Inicializa o Venom Bot e adiciona listener de mensagens
 venom
   .create({
     session: '/app/tokens/bot-session',
