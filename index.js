@@ -33,9 +33,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 2️⃣ Endpoints HTTP
-
-// Health check
+// Health Check
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
 // Handler único para GET e POST /send
@@ -57,12 +55,10 @@ async function sendHandler(req, res) {
     return res.status(500).json({ success: false, error: err.toString() });
   }
 }
-
-// Rotas de envio
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// 3️⃣ Inicializa Venom Bot e inicia o servidor em seguida
+// Inicializa Venom Bot e o servidor em seguida
 venom
   .create({
     session: '/app/tokens/bot-session',
@@ -73,10 +69,10 @@ venom
     client = c;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Listener para mensagens recebidas
     client.onMessage(async (msg) => {
       console.log('🔔 Mensagem recebida:', msg.from, msg.body);
       if (msg.isGroupMsg || !msg.body) return;
+
       const payload = {
         telefone: msg.from,
         mensagem: msg.body,
@@ -105,7 +101,6 @@ venom
       }
     });
 
-    // Aguarda o client estar pronto antes de ouvir na porta
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
     app.listen(PORT);
   })
