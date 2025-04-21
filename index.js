@@ -36,7 +36,7 @@ app.use((req, res, next) => {
 // Health Check
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-// Handler único para GET e POST /send
+// 2️⃣ Handler único para GET e POST /send
 async function sendHandler(req, res) {
   const isGet = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
@@ -58,7 +58,7 @@ async function sendHandler(req, res) {
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// Inicializa Venom Bot e o servidor em seguida
+// 3️⃣ Inicializa Venom Bot e inicia o servidor em seguida
 venom
   .create({
     session: '/app/tokens/bot-session',
