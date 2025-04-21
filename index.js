@@ -2,17 +2,14 @@
 
 // 0️⃣ Carrega variáveis de ambiente
 require('dotenv').config();
-console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-
+console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
 
 const express = require('express');
-const fetch = require('node-fetch');
 const venom = require('venom-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 let client;
 
 // 1️⃣ Middleware: parse JSON com verificação de sintaxe
@@ -39,7 +36,7 @@ app.use((req, _res, next) => {
 // Health check (sempre ativo)
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-// 3️⃣ Handler único para GET e POST /send
+// 3️⃣ Handler único para GET e POST /send (fluxo de disparo de mensagens da planilha)
 async function sendHandler(req, res) {
   const isGet = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
@@ -61,7 +58,6 @@ async function sendHandler(req, res) {
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    console.error(err.stack || err);
     const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
     return res.status(500).json({ success: false, error: errorMessage });
   }
@@ -69,17 +65,25 @@ async function sendHandler(req, res) {
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// 4️⃣ Inicia o servidor HTTP imediatamente antes do Venom
+// 4️⃣ Inicia o servidor HTTP antes do Venom
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// 5️⃣ Inicializa o Venom Bot e adiciona listener de mensagens
+// 5️⃣ Inicializa o Venom Bot e listener de mensagens (fluxo inbound)
 venom
   .create({
     session: '/app/tokens/bot-session',
-    headless: true,
+    headless: 'new',
     useChrome: true,
+    executablePath: '/usr/bin/google-chrome-stable',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+    ],
   })
   .then((c) => {
     client = c;
@@ -90,9 +94,9 @@ venom
       if (msg.isGroupMsg || !msg.body) return;
 
       const payload = {
-        telefone: msg.from,
-        mensagem: msg.body,
-        nome: msg.sender?.pushname || '',
+        telefone: msg.from,      // +5511...
+        mensagem: msg.body,      // texto recebido
+        nome:     msg.sender?.pushname || '',
       };
 
       if (!N8N_WEBHOOK_URL) {
@@ -108,12 +112,12 @@ venom
         });
         if (!response.ok) {
           const text = await response.text();
-          console.error('❌ N8N webhook error:', response.status, text);
+          console.error('❌ n8n webhook error:', response.status, text);
         } else {
-          console.log('✅ Dados enviados ao n8n.');
+          console.log('✅ Dados de inbound enviados ao n8n.');
         }
       } catch (err) {
-        console.error('❌ Falha ao enviar ao n8n:', err);
+        console.error('❌ Falha ao enviar inbound ao n8n:', err);
       }
     });
   })
@@ -121,3 +125,4 @@ venom
     console.error('❌ Erro ao iniciar Venom Bot:', err);
     process.exit(1);
   });
+EOF
