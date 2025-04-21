@@ -2,8 +2,9 @@
 
 // 0️⃣ Carrega variáveis de ambiente
 require('dotenv').config();
-console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL=https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085
- });
+console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
+
 
 const express = require('express');
 const fetch = require('node-fetch');
