@@ -76,18 +76,17 @@ venom
     session: '/app/tokens/bot-session',
     headless: 'new',
     useChrome: true,
-    executablePath: '/usr/bin/google-chrome-stable',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--disable-gpu',
-    ],
+    browserArgs: ['--no-sandbox','--disable-setuid-sandbox'],
   })
   .then((c) => {
     client = c;
     console.log('✅ Bot autenticado e pronto.');
+    // resto do seu código…
+  })
+  .catch((err) => {
+    console.error('❌ Erro ao iniciar Venom Bot:', err);
+    process.exit(1);
+  });
 
     client.onMessage(async (msg) => {
       console.log('🔔 Mensagem recebida:', msg.from, msg.body);
