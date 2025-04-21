@@ -20,10 +20,11 @@ app.use(express.json({
   verify: (req, _res, buf) => {
     try {
       JSON.parse(buf);
-    } catch (err) {
-      console.error('❌ JSON inválido recebido:', buf.toString());
-      throw err;
-    }
+  } catch (err) {
+    console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
+    console.error(err.stack || JSON.stringify(err, null, 2));
+    const message = err instanceof Error ? err.message : JSON.stringify(err);
+    return res.status(500).json({ success: false, error: message });
   }
 }));
 app.use((req, res, next) => {
