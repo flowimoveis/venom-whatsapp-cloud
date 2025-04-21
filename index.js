@@ -1,13 +1,16 @@
 // index.js - Servidor Express + Venom Bot
 
+// Carrega variáveis de ambiente
 require('dotenv').config();
+// Log de debug para verificar se a variável foi carregada
+console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL: process.env.N8N_WEBHOOK_URL });
+
 const express = require('express');
 const fetch = require('node-fetch');
 const venom = require('venom-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-// Buscando a URL do webhook do n8n a partir da variável de ambiente
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 let client;
 
@@ -38,6 +41,7 @@ app.get('/', (_req, res) => res.status(200).send('OK'));
 // Handler único para GET e POST /send
 async function sendHandler(req, res) {
   const isGet = req.method === 'GET';
+  if (isGet) console.log('📥 GET Params:', req.query);
   const phone = isGet ? req.query.phone : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
@@ -71,6 +75,7 @@ venom
 
     // Listener para mensagens recebidas
     client.onMessage(async (msg) => {
+      console.log('🔔 Mensagem recebida:', msg.from, msg.body);
       if (msg.isGroupMsg || !msg.body) return;
       const payload = {
         telefone: msg.from,
@@ -101,9 +106,8 @@ venom
     });
 
     // Aguarda o client estar pronto antes de ouvir na porta
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    });
+    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    app.listen(PORT);
   })
   .catch((err) => {
     console.error('❌ Erro ao iniciar Venom Bot:', err);
