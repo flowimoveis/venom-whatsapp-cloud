@@ -6,7 +6,8 @@ const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
 
 const express = require('express');
-const venom = require('venom-bot');
+const fetch   = require('node-fetch');       // ← Import do fetch
+const venom   = require('venom-bot');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,18 +37,17 @@ app.use((req, _res, next) => {
 // Health check (sempre ativo)
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-// 3️⃣ Handler único para GET e POST /send (fluxo de disparo de mensagens da planilha)
+// 3️⃣ Handler único para GET e POST /send
 async function sendHandler(req, res) {
-  const isGet = req.method === 'GET';
+  const isGet   = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
 
-  const phone = isGet ? req.query.phone : req.body.phone;
+  const phone   = isGet ? req.query.phone   : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
     return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
   }
-
   if (!client) {
     console.error('❌ Bot ainda não inicializado.');
     return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
@@ -65,36 +65,37 @@ async function sendHandler(req, res) {
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// 4️⃣ Inicia o servidor HTTP antes do Venom
+// 4️⃣ Inicia o servidor HTTP
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// 5️⃣ Inicializa o Venom Bot e listener de mensagens (fluxo inbound)
+// 5️⃣ Inicializa o Venom Bot e registra listener de mensagens
 venom
   .create({
     session: '/app/tokens/bot-session',
     headless: 'new',
     useChrome: true,
-    browserArgs: ['--no-sandbox','--disable-setuid-sandbox'],
+    browserArgs: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+    ],
   })
   .then((c) => {
     client = c;
     console.log('✅ Bot autenticado e pronto.');
-    // resto do seu código…
-  })
-  .catch((err) => {
-    console.error('❌ Erro ao iniciar Venom Bot:', err);
-    process.exit(1);
-  });
 
     client.onMessage(async (msg) => {
       console.log('🔔 Mensagem recebida:', msg.from, msg.body);
       if (msg.isGroupMsg || !msg.body) return;
 
       const payload = {
-        telefone: msg.from,      // +5511...
-        mensagem: msg.body,      // texto recebido
+        telefone: msg.from,
+        mensagem: msg.body,
         nome:     msg.sender?.pushname || '',
       };
 
@@ -105,9 +106,9 @@ venom
 
       try {
         const response = await fetch(N8N_WEBHOOK_URL, {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body:    JSON.stringify(payload),
         });
         if (!response.ok) {
           const text = await response.text();
@@ -124,4 +125,3 @@ venom
     console.error('❌ Erro ao iniciar Venom Bot:', err);
     process.exit(1);
   });
-EOF
