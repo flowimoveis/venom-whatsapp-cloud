@@ -8,6 +8,7 @@ console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
 const express = require('express');
 const fetch   = require('node-fetch');       // ← Import do fetch
 const venom   = require('venom-bot');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -86,12 +87,37 @@ venom
     ],
   })
   .then((c) => {
-    client = c;
-    console.log('✅ Bot autenticado e pronto.');
+  client = c;
+  console.log('✅ Bot autenticado e pronto.');
 
-    client.onMessage(async (msg) => {
-      console.log('🔔 Mensagem recebida:', msg.from, msg.body);
-      if (msg.isGroupMsg || !msg.body) return;
+  // Escuta mensagens recebidas no WhatsApp
+  client.onMessage(async (message) => {
+    console.log("📨 Mensagem recebida:", message.body);
+
+    const payload = {
+      telefone: message.from,
+      mensagem: message.body,
+      nome: message.sender?.pushname || "Desconhecido"
+    };
+
+    const webhookUrl = N8N_WEBHOOK_URL || "https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085";
+
+    try {
+      const response = await axios.post(webhookUrl, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.status >= 200 && response.status < 300) {
+        console.log("✅ Dados enviados ao n8n com sucesso.");
+      } else {
+        console.error("⚠️ Erro ao enviar para n8n:", response.status, response.data);
+      }
+    } catch (err) {
+      console.error("❌ Falha ao enviar para o n8n:", err.message);
+    }
+  });
+})
+
 
       const payload = {
         telefone: msg.from,
