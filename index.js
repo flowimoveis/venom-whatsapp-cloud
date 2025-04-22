@@ -131,4 +131,20 @@ browserArgs: [
   .catch((err) => {
     console.error('❌ Erro ao iniciar Venom Bot:', err);
     process.exit(1);
+    venom.create({
+  session: '/app/tokens/bot-session',
+  headless: true,  // usa o modo antigo que é mais estável em servidores
+  useChrome: true,
+  browserArgs: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--single-process',
+    '--no-zygote',
+    '--disable-software-rasterizer',
+    '--disable-dev-tools',
+    '--remote-debugging-port=9222',
+  ],
+})
   });
