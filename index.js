@@ -75,7 +75,18 @@ app.listen(PORT, () => {
 venom
   .create({
     session: '/app/tokens/bot-session',
-    headless: false,
+   headless: true,  // <- forçar o headless antigo
+browserArgs: [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--single-process',
+  '--no-zygote',
+  '--disable-software-rasterizer',
+  '--disable-dev-tools',
+  '--remote-debugging-port=9222'
+],
     useChrome: true,
     browserArgs: [
       '--no-sandbox',
