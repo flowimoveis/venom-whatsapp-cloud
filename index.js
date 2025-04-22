@@ -75,7 +75,7 @@ app.listen(PORT, () => {
 venom
   .create({
     session: '/app/tokens/bot-session',
-    headless: false,
+    headless: new,
     useChrome: true,
     browserArgs: [
       '--no-sandbox',
