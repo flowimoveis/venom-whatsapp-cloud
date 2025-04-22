@@ -87,63 +87,33 @@ venom
     ],
   })
   .then((c) => {
-  client = c;
-  console.log('✅ Bot autenticado e pronto.');
+    client = c;
+    console.log('✅ Bot autenticado e pronto.');
 
-  // Escuta mensagens recebidas no WhatsApp
-  client.onMessage(async (message) => {
-    console.log("📨 Mensagem recebida:", message.body);
-
-    const payload = {
-      telefone: message.from,
-      mensagem: message.body,
-      nome: message.sender?.pushname || "Desconhecido"
-    };
-
-    const webhookUrl = N8N_WEBHOOK_URL || "https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085";
-
-    try {
-      const response = await axios.post(webhookUrl, payload, {
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.status >= 200 && response.status < 300) {
-        console.log("✅ Dados enviados ao n8n com sucesso.");
-      } else {
-        console.error("⚠️ Erro ao enviar para n8n:", response.status, response.data);
-      }
-    } catch (err) {
-      console.error("❌ Falha ao enviar para o n8n:", err.message);
-    }
-  });
-})
-
+    // Escuta mensagens recebidas no WhatsApp
+    client.onMessage(async (message) => {
+      console.log("📨 Mensagem recebida:", message.body);
 
       const payload = {
-        telefone: msg.from,
-        mensagem: msg.body,
-        nome:     msg.sender?.pushname || '',
+        telefone: message.from,
+        mensagem: message.body,
+        nome: message.sender?.pushname || "Desconhecido"
       };
 
-      if (!N8N_WEBHOOK_URL) {
-        console.warn('⚠️ N8N_WEBHOOK_URL não definido no .env');
-        return;
-      }
+      const webhookUrl = N8N_WEBHOOK_URL || "https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085";
 
       try {
-        const response = await fetch(N8N_WEBHOOK_URL, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify(payload),
+        const response = await axios.post(webhookUrl, payload, {
+          headers: { 'Content-Type': 'application/json' }
         });
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('❌ n8n webhook error:', response.status, text);
+
+        if (response.status >= 200 && response.status < 300) {
+          console.log("✅ Dados enviados ao n8n com sucesso.");
         } else {
-          console.log('✅ Dados de inbound enviados ao n8n.');
+          console.error("⚠️ Erro ao enviar para n8n:", response.status, response.data);
         }
       } catch (err) {
-        console.error('❌ Falha ao enviar inbound ao n8n:', err);
+        console.error("❌ Falha ao enviar para o n8n:", err.message);
       }
     });
   })
