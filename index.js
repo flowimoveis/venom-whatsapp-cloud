@@ -72,21 +72,10 @@ app.listen(PORT, () => {
 });
 
 // 5️⃣ Inicializa o Venom Bot e registra listener de mensagens
-venom
+ venom
   .create({
     session: '/app/tokens/bot-session',
-   headless: true,  // <- forçar o headless antigo
-browserArgs: [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-dev-shm-usage',
-  '--disable-gpu',
-  '--single-process',
-  '--no-zygote',
-  '--disable-software-rasterizer',
-  '--disable-dev-tools',
-  '--remote-debugging-port=9222'
-],
+    headless: true,  // usa o modo antigo estável
     useChrome: true,
     browserArgs: [
       '--no-sandbox',
@@ -95,13 +84,15 @@ browserArgs: [
       '--disable-gpu',
       '--single-process',
       '--no-zygote',
+      '--disable-software-rasterizer',
+      '--disable-dev-tools',
+      '--remote-debugging-port=9222'
     ],
   })
   .then((c) => {
     client = c;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Escuta mensagens recebidas no WhatsApp
     client.onMessage(async (message) => {
       console.log("📨 Mensagem recebida:", message.body);
 
@@ -131,20 +122,4 @@ browserArgs: [
   .catch((err) => {
     console.error('❌ Erro ao iniciar Venom Bot:', err);
     process.exit(1);
-    venom.create({
-  session: '/app/tokens/bot-session',
-  headless: true,  // usa o modo antigo que é mais estável em servidores
-  useChrome: true,
-  browserArgs: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--single-process',
-    '--no-zygote',
-    '--disable-software-rasterizer',
-    '--disable-dev-tools',
-    '--remote-debugging-port=9222',
-  ],
-})
   });
