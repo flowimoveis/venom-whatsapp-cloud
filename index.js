@@ -40,18 +40,22 @@ app.get('/', (_req, res) => res.status(200).send('OK'));
 
 // 3️⃣ Handler único para GET e POST /send
 async function sendHandler(req, res) {
-  const isGet   = req.method === 'GET';
+  const isGet = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
 
-  const phone   = isGet ? req.query.phone   : req.body.phone;
+  const phone = isGet ? req.query.phone : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
-    return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
+    return res
+      .status(400)
+      .json({ success: false, error: 'phone e message obrigatórios' });
   }
   if (!client) {
     console.error('❌ Bot ainda não inicializado.');
-    return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
+    return res
+      .status(503)
+      .json({ success: false, error: 'Bot não está pronto.' });
   }
 
   try {
@@ -59,10 +63,16 @@ async function sendHandler(req, res) {
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+    const errorMessage =
+      err && err.message
+        ? err.message
+        : typeof err === 'string'
+        ? err
+        : JSON.stringify(err);
     return res.status(500).json({ success: false, error: errorMessage });
   }
 }
+
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
