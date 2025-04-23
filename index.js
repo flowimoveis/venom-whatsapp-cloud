@@ -59,10 +59,12 @@ async function sendHandler(req, res) {
   }
 
   try {
+    // envia com sufixo @c.us
     await client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
+    // captura apenas a mensagem de erro para enviar ao n8n
     const errorMessage =
       err && err.message
         ? err.message
@@ -82,7 +84,7 @@ app.listen(PORT, () => {
 });
 
 // 5️⃣ Inicializa o Venom Bot e registra listener de mensagens
- venom
+venom
   .create({
     session: '/app/tokens/bot-session',
     headless: true,  // usa o modo antigo estável
