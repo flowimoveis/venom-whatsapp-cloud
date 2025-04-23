@@ -60,7 +60,7 @@ async function sendHandler(req, res) {
 
   try {
     // o sufixo @c.us já é adicionado aqui
-    await client.sendText(`${phone}@c.us`, message);
+    await client.sendText(phone, message);
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
