@@ -59,26 +59,34 @@ async function sendHandler(req, res) {
   }
 
   try {
+    // o sufixo @c.us já é adicionado aqui
     await client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
 
-    // Primeiro tenta pegar a mensagem específica do payload do Venom (err.text)
+    // Se o Venom retornou um objeto com campo `text`, use-o
     let errorMessage;
     if (err && typeof err === 'object' && 'text' in err) {
       errorMessage = err.text;
-    } else if (err && err.message) {
+    }
+    // Caso contrário, use err.message se existir
+    else if (err && err.message) {
       errorMessage = err.message;
-    } else if (typeof err === 'string') {
+    }
+    // Se ainda for string
+    else if (typeof err === 'string') {
       errorMessage = err;
-    } else {
+    }
+    // Por fim, serialize todo o objeto
+    else {
       errorMessage = JSON.stringify(err);
     }
 
     return res.status(500).json({ success: false, error: errorMessage });
   }
 }
+
 
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
