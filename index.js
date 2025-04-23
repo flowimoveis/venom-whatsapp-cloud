@@ -43,7 +43,7 @@ async function sendHandler(req, res) {
   const isGet = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
 
-  const phone = isGet ? req.query.phone : req.body.phone;
+  const phone   = isGet ? req.query.phone   : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
@@ -59,18 +59,23 @@ async function sendHandler(req, res) {
   }
 
   try {
-    // envia com sufixo @c.us
     await client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    // captura apenas a mensagem de erro para enviar ao n8n
-    const errorMessage =
-      err && err.message
-        ? err.message
-        : typeof err === 'string'
-        ? err
-        : JSON.stringify(err);
+
+    // Primeiro tenta pegar a mensagem específica do payload do Venom (err.text)
+    let errorMessage;
+    if (err && typeof err === 'object' && 'text' in err) {
+      errorMessage = err.text;
+    } else if (err && err.message) {
+      errorMessage = err.message;
+    } else if (typeof err === 'string') {
+      errorMessage = err;
+    } else {
+      errorMessage = JSON.stringify(err);
+    }
+
     return res.status(500).json({ success: false, error: errorMessage });
   }
 }
