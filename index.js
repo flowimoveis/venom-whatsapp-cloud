@@ -121,11 +121,15 @@ venom
     client.onMessage(async (message) => {
       console.log("📨 Mensagem recebida:", message.body);
 
-      const payload = {
-        telefone: message.from,
-        mensagem: message.body,
-        nome: message.sender?.pushname || "Desconhecido"
-      };
+// Divide no '@' e pega só a parte antes dele:
+const telefoneRaw = message.from.split('@')[0];
+
+const payload = {
+  telefone: telefoneRaw,       // ex: "5511963073511"
+  mensagem: message.body,
+  nome: message.sender?.pushname || "Desconhecido"
+};
+
 
       const webhookUrl = N8N_WEBHOOK_URL || "https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085";
 
