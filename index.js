@@ -93,31 +93,31 @@ app.listen(PORT, () => {
     client = c;
     console.log('✅ Bot autenticado e pronto.');
 
-    client.onMessage(async (message) => {
-      console.log("📨 Mensagem recebida:", message.body);
+client.onMessage(async (message) => {
+  // ... código anterior de montagem de payload
+  const payload = {
+    telefone: telefoneRaw,
+    mensagem: message.body,
+    nome: message.sender?.pushname || "Desconhecido",
+  };
 
-      const payload = {
-        telefone: message.from,
-        mensagem: message.body,
-        nome: message.sender?.pushname || "Desconhecido"
-      };
+  console.log('➡️ Enviando ao n8n payload:', payload);
 
-      const webhookUrl = N8N_WEBHOOK_URL || "https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085";
-
-      try {
-        const response = await axios.post(webhookUrl, payload, {
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        if (response.status >= 200 && response.status < 300) {
-          console.log("✅ Dados enviados ao n8n com sucesso.");
-        } else {
-          console.error("⚠️ Erro ao enviar para n8n:", response.status, response.data);
-        }
-      } catch (err) {
-        console.error("❌ Falha ao enviar para o n8n:", err.message);
-      }
+  try {
+    const response = await axios.post(webhookUrl, payload, {
+      headers: { 'Content-Type': 'application/json' }
     });
+
+    if (response.status >= 200 && response.status < 300) {
+      console.log('✅ Dados enviados ao n8n com sucesso:', response.data);
+    } else {
+      console.error('⚠️ n8n respondeu com erro:', response.status, response.data);
+    }
+  } catch (err) {
+    console.error('❌ Falha ao enviar para o n8n:', err.message);
+  }
+});
+
   })
   .catch((err) => {
     console.error('❌ Erro ao iniciar Venom Bot:', err);
