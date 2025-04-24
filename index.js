@@ -74,11 +74,12 @@ app.listen(PORT, () => {
 });
 
 // 5️⃣ Inicializa o Venom Bot e registra listener de mensagens
- venom
+venom
   .create({
     session: '/app/tokens/bot-session',
-    headless: true,  // usa o modo antigo estável
-    useChrome: true,
+    headless: 'new',                 // usa o novo headless mode do Chrome
+    useChrome: true,                 // continua usando o Chrome instalado
+    executablePath: '/usr/bin/google-chrome-stable', // caminho exato
     browserArgs: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -94,6 +95,12 @@ app.listen(PORT, () => {
   .then((c) => {
     client = c;
     console.log('✅ Bot autenticado e pronto.');
+    // resto do listener...
+  })
+  .catch((err) => {
+    console.error('❌ Erro ao iniciar Venom Bot:', err);
+    process.exit(1);
+  });
 
 client.onMessage(async (message) => {
   // ... código anterior de montagem de payload
