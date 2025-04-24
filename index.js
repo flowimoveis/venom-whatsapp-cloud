@@ -40,64 +40,39 @@ app.get('/', (_req, res) => res.status(200).send('OK'));
 
 // 3️⃣ Handler único para GET e POST /send
 async function sendHandler(req, res) {
-  const isGet = req.method === 'GET';
+  const isGet   = req.method === 'GET';
   if (isGet) console.log('📥 GET Params:', req.query);
 
   const phone   = isGet ? req.query.phone   : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
-    return res
-      .status(400)
-      .json({ success: false, error: 'phone e message obrigatórios' });
+    return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
   }
   if (!client) {
     console.error('❌ Bot ainda não inicializado.');
-    return res
-      .status(503)
-      .json({ success: false, error: 'Bot não está pronto.' });
+    return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
   }
 
   try {
-    // o sufixo @c.us já é adicionado aqui
-    await client.sendText(phone, message);
+    await client.sendText(${phone}@c.us, message);
     return res.json({ success: true });
   } catch (err) {
-    console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-
-    // Se o Venom retornou um objeto com campo `text`, use-o
-    let errorMessage;
-    if (err && typeof err === 'object' && 'text' in err) {
-      errorMessage = err.text;
-    }
-    // Caso contrário, use err.message se existir
-    else if (err && err.message) {
-      errorMessage = err.message;
-    }
-    // Se ainda for string
-    else if (typeof err === 'string') {
-      errorMessage = err;
-    }
-    // Por fim, serialize todo o objeto
-    else {
-      errorMessage = JSON.stringify(err);
-    }
-
+    console.error(❌ Erro ${isGet ? 'GET' : 'POST'} /send:, err);
+    const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
     return res.status(500).json({ success: false, error: errorMessage });
   }
 }
-
-
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
 // 4️⃣ Inicia o servidor HTTP
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(🚀 Servidor rodando na porta ${PORT});
 });
 
 // 5️⃣ Inicializa o Venom Bot e registra listener de mensagens
-venom
+ venom
   .create({
     session: '/app/tokens/bot-session',
     headless: true,  // usa o modo antigo estável
@@ -121,15 +96,11 @@ venom
     client.onMessage(async (message) => {
       console.log("📨 Mensagem recebida:", message.body);
 
-// Divide no '@' e pega só a parte antes dele:
-const telefoneRaw = message.from.split('@')[0];
-
-const payload = {
-  telefone: telefoneRaw,       // ex: "5511963073511"
-  mensagem: message.body,
-  nome: message.sender?.pushname || "Desconhecido"
-};
-
+      const payload = {
+        telefone: message.from,
+        mensagem: message.body,
+        nome: message.sender?.pushname || "Desconhecido"
+      };
 
       const webhookUrl = N8N_WEBHOOK_URL || "https://flowimoveis.app.n8n.cloud/webhook/41bde738-3535-431f-86c8-58c45346a085";
 
