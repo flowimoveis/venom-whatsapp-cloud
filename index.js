@@ -4,6 +4,8 @@
 require('dotenv').config();
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
+console.log('🔗 Usando webhook URL:', N8N_WEBHOOK_URL);
+
 
 const express = require('express');
 const fetch   = require('node-fetch');       // ← Import do fetch
