@@ -91,7 +91,25 @@ venom
     client = c;
     console.log('✅ Bot autenticado e pronto.');
 
-    client.onMessage(async (message) => {
+    const axios = require('axios');
+
+client.onMessage(async (message) => {
+  console.log(`📲 Mensagem recebida de ${message.from}: "${message.body}"`);
+  try {
+    const res = await axios.post(
+      process.env.N8N_WEBHOOK_URL,
+      {
+        telefone: message.from,
+        mensagem: message.body,
+      },
+      { timeout: 5000 }
+    );
+    console.log(`✅ Webhook chamado com status ${res.status}`);
+  } catch (err) {
+    console.error('❌ Erro ao chamar webhook:', err.message);
+  }
+});
+
       // Extrai número sem sufixo @c.us
       const telefoneRaw = message.from.split('@')[0];
       console.log('📨 Mensagem recebida:', message.body);
