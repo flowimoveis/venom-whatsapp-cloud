@@ -18,7 +18,7 @@ process.on('uncaughtException', err => {
   console.error('🚨 Uncaught Exception:', err);
 });
 
-console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
+console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL, PORT });
 
 // --- Servidor HTTP ---------------------------------------------------------
 
@@ -79,18 +79,10 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// --- Função de inicialização do Venom com LocalAuth + Health-Check --------
-
-let healthInterval;
+// --- Função de inicialização do Venom com LocalAuth ------------------------
 
 async function initVenom() {
   try {
-    // limpa intervalo anterior
-    if (healthInterval) {
-      clearInterval(healthInterval);
-      healthInterval = null;
-    }
-
     const client = await venom.create({
       authStrategy: new LocalAuth({
         session: 'whatsapp-bot',
@@ -114,31 +106,14 @@ async function initVenom() {
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Reconexão automática em caso de expiração ou desconexão de sessão
+    // Reconexão automática: sai para PM2 reiniciar o processo
     client.onStateChange(state => {
-      console.log(`StateChange: ${state}`);
+      console.log(`StateChange detectado: ${state}`);
       if (['CONFLICT','UNPAIRED','UNLAUNCHED','TIMEOUT','DISCONNECTED'].includes(state)) {
-        console.warn('⚠️ Sessão inválida — reiniciando em 5s...');
-        client.close();
-        setTimeout(initVenom, 5000);
+        console.error(`⚠️ Sessão inválida (“${state}”) — finalizando processo para reinício.`);
+        process.exit(1);
       }
     });
-
-    // Health-check a cada 2 minutos
-    healthInterval = setInterval(async () => {
-      try {
-        const ok = await client.isConnected();
-        console.log('🔍 Health check, está conectado?', ok);
-        if (!ok) {
-          console.warn('❌ Cliente desconectado no health-check — reiniciando...');
-          client.close();
-          clearInterval(healthInterval);
-          initVenom();
-        }
-      } catch (e) {
-        console.error('❌ Erro no health-check:', e);
-      }
-    }, 2 * 60 * 1000);
 
     // Handler de mensagens: envia ao n8n
     client.onMessage(async message => {
@@ -156,13 +131,13 @@ async function initVenom() {
       }
     });
 
-    // Debug opcional
+    // Debug opcional de fluxo e ack
     client.onStreamChange(stream => console.log('StreamChange:', stream));
     client.onAck(ack => console.log('Ack:', ack));
 
   } catch (err) {
-    console.error('❌ InitVenom falhou:', err);
-    setTimeout(initVenom, 10000);
+    console.error('❌ InitVenom falhou com erro:', err.stack || err);
+    process.exit(1);
   }
 }
 
