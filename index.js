@@ -8,7 +8,7 @@ const axios         = require('axios');
 const { LocalAuth } = require('venom-bot');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const PORT            = process.env.PORT;
+const PORT           = process.env.PORT;
 
 // Captura erros não tratados
 process.on('unhandledRejection', (reason, p) => {
@@ -106,7 +106,7 @@ async function initVenom() {
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Reconexão automática: sai para PM2 reiniciar o processo
+    // Se a sessão se tornar inválida, sai para o PM2 reiniciar tudo
     client.onStateChange(state => {
       console.log(`StateChange detectado: ${state}`);
       if (['CONFLICT','UNPAIRED','UNLAUNCHED','TIMEOUT','DISCONNECTED'].includes(state)) {
@@ -131,7 +131,7 @@ async function initVenom() {
       }
     });
 
-    // Debug opcional de fluxo e ack
+    // Debug opcional
     client.onStreamChange(stream => console.log('StreamChange:', stream));
     client.onAck(ack => console.log('Ack:', ack));
 
