@@ -7,7 +7,7 @@ const venom   = require('venom-bot');
 const axios   = require('axios');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const PORT            = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL });
 
