@@ -1,13 +1,13 @@
-// index.js - Servidor Express + Venom Bot
+// index.js - Servidor Express + Venom Bot com melhorias de estabilidade
 
-// 0️⃣ Carrega variáveis de ambiente
 require('dotenv').config();
 const express = require('express');
-const venom   = require('venom-bot');
-const axios   = require('axios');
+const venom = require('venom-bot');
+const axios = require('axios');
+const fs = require('fs');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const PORT           = process.env.PORT;
+const PORT = process.env.PORT;
 
 // Captura erros não tratados
 process.on('unhandledRejection', (reason, p) => {
@@ -44,8 +44,8 @@ app.use((req, _res, next) => {
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
 async function sendHandler(req, res) {
-  const isGet   = req.method === 'GET';
-  const phone   = isGet ? req.query.phone   : req.body.phone;
+  const isGet = req.method === 'GET';
+  const phone = isGet ? req.query.phone : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
@@ -72,13 +72,13 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// --- Função de inicialização do Venom com session/cashePath ----------------
+// --- Inicialização do Venom ------------------------------------------------
 
 async function initVenom() {
   try {
     const client = await venom.create({
-      session: '/app/tokens/bot-session',  // pasta onde o Venom guarda a sessão
-      cachePath: './sessions',             // opcional para backup de arquivos
+      session: '/app/tokens/bot-session',
+      cachePath: './sessions',
       multidevice: true,
       headless: 'new',
       browserArgs: [
@@ -91,26 +91,54 @@ async function initVenom() {
         '--disable-software-rasterizer',
         '--disable-dev-tools',
         '--remote-debugging-port=9222'
-      ],
+      ]
     });
 
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    client.onStateChange(state => {
-      console.log(`StateChange detectado: ${state}`);
+    // 🔁 Heartbeat: mantém sessão ativa a cada 5 minutos
+    setInterval(async () => {
+      try {
+        await client.getHostDevice();
+        console.log('📡 Heartbeat enviado.');
+      } catch (e) {
+        console.error('❌ Heartbeat falhou:', e.message);
+      }
+    }, 5 * 60 * 1000);
+
+    // 🧠 Estado da sessão
+    client.onStateChange(async (state) => {
+      const emoji = {
+        'CONNECTED': '✅',
+        'TIMEOUT': '⏰',
+        'UNPAIRED': '🔌',
+        'CONFLICT': '⚠️',
+        'UNLAUNCHED': '🚫',
+        'DISCONNECTED': '❗'
+      }[state] || '❔';
+
+      console.log(`${emoji} Estado atual: ${state}`);
+
       if (['CONFLICT','UNPAIRED','UNLAUNCHED','TIMEOUT','DISCONNECTED'].includes(state)) {
-        console.error(`⚠️ Sessão inválida (“${state}”) — finalizando para PM2 reiniciar.`);
-        process.exit(1);
+        console.warn(`⚠️ Tentando reiniciar sessão... (${state})`);
+        try {
+          await client.restartService();
+          console.log('🔁 Serviço reiniciado com sucesso.');
+        } catch (e) {
+          console.error('❌ Falha ao reiniciar. Encerrando processo para PM2 reiniciar.');
+          process.exit(1);
+        }
       }
     });
 
+    // 📥 Mensagens recebidas
     client.onMessage(async message => {
       console.log(`🔔 Mensagem recebida de ${message.from}: "${message.body}"`);
       const payload = {
         telefone: message.from,
         mensagem: message.body || '',
-        nome:     message.sender?.pushname || 'Desconhecido'
+        nome: message.sender?.pushname || 'Desconhecido'
       };
       try {
         const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 5000 });
@@ -120,8 +148,8 @@ async function initVenom() {
       }
     });
 
-    client.onStreamChange(stream => console.log('StreamChange:', stream));
-    client.onAck(ack => console.log('Ack:', ack));
+    client.onStreamChange(stream => console.log('🎥 StreamChange:', stream));
+    client.onAck(ack => console.log('📬 Ack:', ack));
 
   } catch (err) {
     console.error('❌ InitVenom falhou com erro:', err.stack || err);
