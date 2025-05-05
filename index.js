@@ -2,10 +2,9 @@
 
 // 0️⃣ Carrega variáveis de ambiente
 require('dotenv').config();
-const express       = require('express');
-const venom         = require('venom-bot');
-const LocalAuth     = venom.LocalAuth;
-const axios         = require('axios');
+const express = require('express');
+const venom   = require('venom-bot');
+const axios   = require('axios');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 const PORT           = process.env.PORT;
@@ -24,7 +23,6 @@ console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL, PORT });
 
 const app = express();
 
-// Parse JSON apenas nos endpoints que realmente precisarem
 app.use(express.json({
   strict: true,
   verify(req, _res, buf) {
@@ -36,7 +34,6 @@ app.use(express.json({
   }
 }));
 
-// Logging genérico de todos os bodies POST recebidos
 app.use((req, _res, next) => {
   if (req.method === 'POST' && req.body) {
     console.log('📥 RAW BODY:', JSON.stringify(req.body));
@@ -44,10 +41,8 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-// Endpoint de envio de mensagem via API
 async function sendHandler(req, res) {
   const isGet   = req.method === 'GET';
   const phone   = isGet ? req.query.phone   : req.body.phone;
@@ -66,28 +61,24 @@ async function sendHandler(req, res) {
     return res.json({ success: true });
   } catch (err) {
     console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    const errorMessage = err.message || JSON.stringify(err);
-    return res.status(500).json({ success: false, error: errorMessage });
+    return res.status(500).json({ success: false, error: err.message || JSON.stringify(err) });
   }
 }
 
 app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
-// Inicia servidor HTTP
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// --- Função de inicialização do Venom com LocalAuth ------------------------
+// --- Função de inicialização do Venom com session/cashePath ----------------
 
 async function initVenom() {
   try {
     const client = await venom.create({
-      authStrategy: new LocalAuth({
-        session: 'whatsapp-bot',
-        dataPath: './sessions'
-      }),
+      session: '/app/tokens/bot-session',  // pasta onde o Venom guarda a sessão
+      cachePath: './sessions',             // opcional para backup de arquivos
       multidevice: true,
       headless: 'new',
       browserArgs: [
@@ -106,16 +97,14 @@ async function initVenom() {
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Se a sessão se tornar inválida, sai com exit para PM2 reiniciar
     client.onStateChange(state => {
       console.log(`StateChange detectado: ${state}`);
       if (['CONFLICT','UNPAIRED','UNLAUNCHED','TIMEOUT','DISCONNECTED'].includes(state)) {
-        console.error(`⚠️ Sessão inválida (“${state}”) — finalizando processo.`);
+        console.error(`⚠️ Sessão inválida (“${state}”) — finalizando para PM2 reiniciar.`);
         process.exit(1);
       }
     });
 
-    // Handler de mensagens: envia ao n8n
     client.onMessage(async message => {
       console.log(`🔔 Mensagem recebida de ${message.from}: "${message.body}"`);
       const payload = {
@@ -131,7 +120,6 @@ async function initVenom() {
       }
     });
 
-    // Debug opcional
     client.onStreamChange(stream => console.log('StreamChange:', stream));
     client.onAck(ack => console.log('Ack:', ack));
 
@@ -141,5 +129,4 @@ async function initVenom() {
   }
 }
 
-// Primeira inicialização
 initVenom();
