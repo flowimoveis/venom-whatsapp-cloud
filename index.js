@@ -4,8 +4,8 @@
 require('dotenv').config();
 const express       = require('express');
 const venom         = require('venom-bot');
+const LocalAuth     = venom.LocalAuth;
 const axios         = require('axios');
-const { LocalAuth } = require('venom-bot');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 const PORT           = process.env.PORT;
@@ -106,11 +106,11 @@ async function initVenom() {
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Se a sessão se tornar inválida, sai para o PM2 reiniciar tudo
+    // Se a sessão se tornar inválida, sai com exit para PM2 reiniciar
     client.onStateChange(state => {
       console.log(`StateChange detectado: ${state}`);
       if (['CONFLICT','UNPAIRED','UNLAUNCHED','TIMEOUT','DISCONNECTED'].includes(state)) {
-        console.error(`⚠️ Sessão inválida (“${state}”) — finalizando processo para reinício.`);
+        console.error(`⚠️ Sessão inválida (“${state}”) — finalizando processo.`);
         process.exit(1);
       }
     });
