@@ -1,8 +1,8 @@
 // index.js – Servidor Express + Venom Bot (texto & áudio)
 require('dotenv').config();
 const express = require('express');
-const venom = require('venom-bot');
-const axios = require('axios');
+const venom   = require('venom-bot');
+const axios   = require('axios');
 const FormData = require('form-data');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
@@ -121,72 +121,72 @@ async function initVenom() {
     });
 
     // Handler de mensagens
-   // … dentro de initVenom(), substitua o onMessage por:
+    client.onMessage(async message => {
+      ultimoEvento = Date.now();
 
-client.onMessage(async message => {
-  ultimoEvento = Date.now();
+      // DEBUG: payload completo
+      console.log('🔍 onMessage payload:', JSON.stringify(message, null, 2));
 
-  // DEBUG: veja exatamente o payload que chega
-  console.log('🔍 onMessage payload:', JSON.stringify(message, null, 2));
+      const from = message.from;
+      const type = message.type;
+      let   text = '';
 
-  const from = message.from;       // ex: "5511963073511@c.us"
-  const type = message.type;       // ex: "chat", "ptt", "image", etc.
-  let text  = '';
+      if (type === 'chat') {
+        text = message.body;
+      } else if (type === 'ptt') {
+        try {
+          const media  = await client.decryptFile(message);
+          const buffer = Buffer.from(media.data, 'base64');
 
-  // 1) Texto puro
-  if (type === 'chat') {
-    text = message.body;
+          const form = new FormData();
+          form.append('file', buffer, 'audio.ogg');
+          form.append('model', 'whisper-1');
+          form.append('response_format', 'text');
 
-  // 2) Áudio (voice note)
-  } else if (type === 'ptt') {
-    try {
-      const media  = await client.decryptFile(message);
-      const buffer = Buffer.from(media.data, 'base64');
-
-      const form = new FormData();
-      form.append('file', buffer, 'audio.ogg');
-      form.append('model', 'whisper-1');
-      form.append('response_format', 'text');
-
-      const resp = await axios.post(
-        'https://api.openai.com/v1/audio/transcriptions',
-        form,
-        {
-          headers: {
-            ...form.getHeaders(),
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          },
+          const resp = await axios.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            form,
+            {
+              headers: {
+                ...form.getHeaders(),
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              },
+            }
+          );
+          text = resp.data.trim();
+        } catch (e) {
+          console.error('❌ Transcrição falhou:', e.message);
+          return;
         }
-      );
-      text = resp.data.trim();
-    } catch (e) {
-      console.error('❌ Transcrição falhou:', e.message);
-      return; // aborta se não transcrever
-    }
+      } else {
+        console.log(`⚠️ Ignorando mensagem type="${type}"`);
+        return;
+      }
 
-  } else {
-    // ignora outros tipos (stickers, imagens, etc)
-    console.log(`⚠️ Ignorando mensagem type="${type}"`);
-    return;
-  }
+      if (!text) {
+        console.log(`⚠️ Texto vazio para type="${type}", ignorando.`);
+        return;
+      }
 
-  // 3) Só siga se tivermos texto de verdade
-  if (!text) {
-    console.log(`⚠️ Texto vazio para type="${type}", ignorando.`);
-    return;
-  }
+      console.log(`🔔 Mensagem de ${from} (type=${type}): "${text}"`);
 
-  console.log(`🔔 Mensagem de ${from} (type=${type}): "${text}"`);
+      try {
+        const res = await axios.post(
+          N8N_WEBHOOK_URL,
+          { telefone: from, mensagem: text, type },
+          { timeout: 5000 }
+        );
+        console.log(`✅ Dados enviados ao n8n com status ${res.status}`);
+      } catch (err) {
+        console.error('❌ Erro ao chamar webhook:', err.message);
+      }
+    });
 
-  // 4) Dispara o webhook para o n8n
-  try {
-    const res = await axios.post(
-      N8N_WEBHOOK_URL,
-      { telefone: from, mensagem: text, type },
-      { timeout: 5000 }
-    );
-    console.log(`✅ Dados enviados ao n8n com status ${res.status}`);
   } catch (err) {
-    console.error('❌ Erro ao chamar webhook:', err.message);
+    console.error('❌ initVenom falhou:', err.stack || err);
+    process.exit(1);
   }
-});
+}
+
+// Inicia o bot
+initVenom();
