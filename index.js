@@ -1,14 +1,15 @@
-// index.js - Servidor Express + Venom Bot com melhorias de estabilidade
-
+// index.js – Servidor Express + Venom Bot (texto & áudio)
 require('dotenv').config();
 const express = require('express');
 const venom = require('venom-bot');
 const axios = require('axios');
-const fs = require('fs');
+const FormData = require('form-data');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const PORT = process.env.PORT;
+const PORT            = process.env.PORT || 3000;
 
+////////////////////////////////////////////////////////////////////////////////
+// Tratamento de erros globais
 process.on('unhandledRejection', (reason, p) => {
   console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
 });
@@ -16,21 +17,23 @@ process.on('uncaughtException', err => {
   console.error('🚨 Uncaught Exception:', err);
 });
 
-console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL, PORT });
+console.log('⚙️ ENV:', { N8N_WEBHOOK_URL, PORT });
 
+////////////////////////////////////////////////////////////////////////////////
+// Configuração do Express
 const app = express();
-
 app.use(express.json({
   strict: true,
   verify(req, _res, buf) {
     try { JSON.parse(buf); }
     catch (err) {
-      console.error('❌ JSON inválido recebido:', buf.toString());
+      console.error('❌ JSON inválido:', buf.toString());
       throw err;
     }
   }
 }));
 
+// Log de todos os bodies recebidos
 app.use((req, _res, next) => {
   if (req.method === 'POST' && req.body) {
     console.log('📥 RAW BODY:', JSON.stringify(req.body));
@@ -38,130 +41,146 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.get('/', (_req, res) => res.status(200).send('OK'));
+app.get('/', (_req, res) => res.send('OK'));
 
+// Endpoint /send para disparar mensagens via Venom
 async function sendHandler(req, res) {
-  const isGet = req.method === 'GET';
-  const phone = isGet ? req.query.phone : req.body.phone;
+  const isGet   = req.method === 'GET';
+  const phone   = isGet ? req.query.phone   : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
     return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
   }
   if (!global.client) {
-    console.error('❌ Bot ainda não inicializado.');
     return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
   }
-
   try {
     await global.client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
-    console.error(`❌ Erro ${isGet ? 'GET' : 'POST'} /send:`, err);
-    return res.status(500).json({ success: false, error: err.message || JSON.stringify(err) });
+    console.error(`❌ Erro /send:`, err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
-
-app.get('/send', sendHandler);
+app.get ('/send', sendHandler);
 app.post('/send', sendHandler);
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Express rodando na porta ${PORT}`);
 });
 
+////////////////////////////////////////////////////////////////////////////////
+// Inicialização do Venom
 async function initVenom() {
   try {
     const client = await venom.create({
       session: '/app/tokens/bot-session',
-      cachePath: './sessions',
       multidevice: true,
       headless: 'new',
       browserArgs: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process',
-        '--no-zygote',
-        '--disable-software-rasterizer',
-        '--disable-dev-tools',
-        '--remote-debugging-port=9222'
+        '--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage',
+        '--disable-gpu','--single-process','--no-zygote','--disable-software-rasterizer'
       ]
     });
-
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-// 🔁 Heartbeat: mantém sessão ativa a cada 5 minutos
-setInterval(async () => {
-  try {
-    await client.getHostDevice();
-    await client.sendPresenceAvailable(); // reforça presença online
-    console.log('📡 Heartbeat e presença enviados.');
-  } catch (e) {
-    console.error('❌ Heartbeat falhou:', e.message);
-  }
-}, 5 * 60 * 1000);
+    // Heartbeat a cada 5 min
+    setInterval(async () => {
+      try {
+        await client.getHostDevice();
+        await client.sendPresenceAvailable();
+        console.log('📡 Heartbeat enviado.');
+      } catch (e) {
+        console.error('❌ Heartbeat falhou:', e.message);
+      }
+    }, 5 * 60 * 1000);
 
-    // 🕒 Watchdog para reinício se travar
+    // Watchdog reinicia se sem eventos por >15 min
     let ultimoEvento = Date.now();
-
     setInterval(() => {
-      const agora = Date.now();
-      const minutosSemEvento = (agora - ultimoEvento) / 1000 / 60;
-      if (minutosSemEvento > 15) {
-        console.error(`🛑 Sem eventos há ${minutosSemEvento.toFixed(1)} minutos. Reiniciando...`);
+      if ((Date.now() - ultimoEvento) > 15 * 60 * 1000) {
+        console.error('🛑 Sem eventos >15min, saindo para PM2 reiniciar');
         process.exit(1);
       }
     }, 5 * 60 * 1000);
 
-    // 🧠 Estado da sessão
-    client.onStateChange(async (state) => {
-      const emoji = {
-        'CONNECTED': '✅',
-        'TIMEOUT': '⏰',
-        'UNPAIRED': '🔌',
-        'CONFLICT': '⚠️',
-        'UNLAUNCHED': '🚫',
-        'DISCONNECTED': '❗'
-      }[state] || '❔';
-
-      console.log(`${emoji} Estado atual: ${state}`);
-
-      if (['CONFLICT','UNPAIRED','UNLAUNCHED','TIMEOUT','DISCONNECTED'].includes(state)) {
-        console.warn(`⚠️ Tentando reiniciar sessão... (${state})`);
-        try {
-          await client.restartService();
-          console.log('🔁 Serviço reiniciado com sucesso.');
-        } catch (e) {
-          console.error('❌ Falha ao reiniciar. Encerrando processo para PM2 reiniciar.', e.stack || e.message);
-          process.exit(1);
-        }
+    // Tratamento de estado
+    client.onStateChange(state => {
+      const icons = {
+        CONNECTED: '✅', TIMEOUT: '⏰', UNPAIRED: '🔌',
+        CONFLICT: '⚠️', DISCONNECTED: '❗'
+      };
+      console.log(`${icons[state]||'❔'} State: ${state}`);
+      if (['CONFLICT','UNPAIRED','TIMEOUT','DISCONNECTED'].includes(state)) {
+        client.restartService()
+          .then(() => console.log('🔁 Serviço reiniciado.'))
+          .catch(() => process.exit(1));
       }
     });
 
-    // 📥 Mensagens recebidas
+    // Handler de mensagens
     client.onMessage(async message => {
       ultimoEvento = Date.now();
-      console.log(`🔔 Mensagem recebida de ${message.from}: "${message.body}"`);
-      const payload = {
-        telefone: message.from,
-        mensagem: message.body || '',
-        nome: message.sender?.pushname || 'Desconhecido'
-      };
+      const from = message.from;    // ex: "5511963073511@c.us"
+      let text  = '';
+
+      // 1) Texto puro
+      if (message.type === 'chat') {
+        text = message.body;
+
+      // 2) Áudio (voice note)
+      } else if (message.type === 'ptt') {
+        try {
+          // Decripta o áudio
+          const media   = await client.decryptFile(message);
+          const buffer  = Buffer.from(media.data, 'base64');
+
+          // Prepara form para Whisper
+          const form = new FormData();
+          form.append('file', buffer, 'audio.ogg');
+          form.append('model', 'whisper-1');
+          form.append('response_format', 'text');
+
+          // Chama a API de transcrição
+          const resp = await axios.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            form,
+            {
+              headers: {
+                ...form.getHeaders(),
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              },
+            }
+          );
+          text = resp.data.trim();
+        } catch (e) {
+          console.error('❌ Transcrição falhou:', e.message);
+          return;
+        }
+      } else {
+        // ignora stickers, imagens etc.
+        return;
+      }
+
+      console.log(`🔔 Mensagem de ${from}: "${text}"`);
+
+      // 3) Dispara payload unificado ao n8n
       try {
-        const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 5000 });
-        console.log(`✅ Webhook chamado com status ${res.status}`);
+        const res = await axios.post(N8N_WEBHOOK_URL, {
+          telefone: from,
+          mensagem: text,
+          type:     message.type,
+        }, { timeout: 5000 });
+        console.log(`✅ Webhook n8n ${res.status}`);
       } catch (err) {
-        console.error('❌ Erro ao chamar webhook:', err.message);
+        console.error('❌ Erro webhook n8n:', err.message);
       }
     });
 
-    client.onStreamChange(stream => console.log('🎥 StreamChange:', stream));
-    client.onAck(ack => console.log('📬 Ack:', ack));
-
   } catch (err) {
-    console.error('❌ InitVenom falhou com erro:', err.stack || err);
+    console.error('❌ initVenom falhou:', err.stack||err);
     process.exit(1);
   }
 }
