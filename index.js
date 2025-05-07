@@ -9,7 +9,6 @@ const fs = require('fs');
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 const PORT = process.env.PORT;
 
-// Captura erros não tratados
 process.on('unhandledRejection', (reason, p) => {
   console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
 });
@@ -18,8 +17,6 @@ process.on('uncaughtException', err => {
 });
 
 console.log('⚙️ Loaded ENV:', { N8N_WEBHOOK_URL, PORT });
-
-// --- Servidor HTTP ---------------------------------------------------------
 
 const app = express();
 
@@ -72,8 +69,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-// --- Inicialização do Venom ------------------------------------------------
-
 async function initVenom() {
   try {
     const client = await venom.create({
@@ -97,13 +92,25 @@ async function initVenom() {
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // 🔁 Heartbeat: mantém sessão ativa a cada 5 minutos
+    // 🔁 Heartbeat
     setInterval(async () => {
       try {
         await client.getHostDevice();
         console.log('📡 Heartbeat enviado.');
       } catch (e) {
         console.error('❌ Heartbeat falhou:', e.message);
+      }
+    }, 5 * 60 * 1000);
+
+    // 🕒 Watchdog para reinício se travar
+    let ultimoEvento = Date.now();
+
+    setInterval(() => {
+      const agora = Date.now();
+      const minutosSemEvento = (agora - ultimoEvento) / 1000 / 60;
+      if (minutosSemEvento > 15) {
+        console.error(`🛑 Sem eventos há ${minutosSemEvento.toFixed(1)} minutos. Reiniciando...`);
+        process.exit(1);
       }
     }, 5 * 60 * 1000);
 
@@ -126,7 +133,7 @@ async function initVenom() {
           await client.restartService();
           console.log('🔁 Serviço reiniciado com sucesso.');
         } catch (e) {
-          console.error('❌ Falha ao reiniciar. Encerrando processo para PM2 reiniciar.');
+          console.error('❌ Falha ao reiniciar. Encerrando processo para PM2 reiniciar.', e.stack || e.message);
           process.exit(1);
         }
       }
@@ -134,6 +141,7 @@ async function initVenom() {
 
     // 📥 Mensagens recebidas
     client.onMessage(async message => {
+      ultimoEvento = Date.now();
       console.log(`🔔 Mensagem recebida de ${message.from}: "${message.body}"`);
       const payload = {
         telefone: message.from,
@@ -141,7 +149,7 @@ async function initVenom() {
         nome: message.sender?.pushname || 'Desconhecido'
       };
       try {
-        const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 5000 });
+        const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 1000 });
         console.log(`✅ Webhook chamado com status ${res.status}`);
       } catch (err) {
         console.error('❌ Erro ao chamar webhook:', err.message);
