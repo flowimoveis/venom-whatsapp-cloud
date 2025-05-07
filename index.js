@@ -92,15 +92,16 @@ async function initVenom() {
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // 🔁 Heartbeat
-    setInterval(async () => {
-      try {
-        await client.getHostDevice();
-        console.log('📡 Heartbeat enviado.');
-      } catch (e) {
-        console.error('❌ Heartbeat falhou:', e.message);
-      }
-    }, 5 * 60 * 1000);
+// 🔁 Heartbeat: mantém sessão ativa a cada 5 minutos
+setInterval(async () => {
+  try {
+    await client.getHostDevice();
+    await client.sendPresenceAvailable(); // reforça presença online
+    console.log('📡 Heartbeat e presença enviados.');
+  } catch (e) {
+    console.error('❌ Heartbeat falhou:', e.message);
+  }
+}, 5 * 60 * 1000);
 
     // 🕒 Watchdog para reinício se travar
     let ultimoEvento = Date.now();
