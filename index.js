@@ -149,7 +149,7 @@ async function initVenom() {
         nome: message.sender?.pushname || 'Desconhecido'
       };
       try {
-        const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 1000 });
+        const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 5000 });
         console.log(`✅ Webhook chamado com status ${res.status}`);
       } catch (err) {
         console.error('❌ Erro ao chamar webhook:', err.message);
