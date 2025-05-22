@@ -1,15 +1,15 @@
-// index.js – Servidor Express + Venom Bot (texto, áudio e imagens)
+// index.js – Servidor Express + Bot WhatsApp (texto, áudio e imagens)
 require('dotenv').config();
 const express = require('express');
 const venom = require('venom-bot');
 const axios = require('axios');
 const FormData = require('form-data');
 
-const SESSION_NAME = 'bot-session'; // nome simples, evita erro de permissão
+const SESSION_NAME = 'bot-session';
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 const PORT = process.env.PORT || 3000;
 
-// Logs de erros globais
+// Logs globais
 process.on('unhandledRejection', (reason, p) => {
   console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
 });
@@ -51,11 +51,12 @@ async function sendHandler(req, res) {
   if (!global.client) {
     return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
   }
+
   try {
     await global.client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
-    console.error(`❌ Erro /send:`, err.message);
+    console.error(`❌ Erro ao enviar mensagem:`, err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 }
@@ -63,10 +64,11 @@ app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
 app.listen(PORT, () => {
-  console.log(`🚀 Express rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
-async function initVenom() {
+// Inicialização do bot
+async function startBot() {
   try {
     const client = await venom.create({
       session: SESSION_NAME,
@@ -88,7 +90,7 @@ async function initVenom() {
     });
 
     global.client = client;
-    console.log('✅ Bot autenticado e pronto.');
+    console.log('✅ Bot conectado e pronto.');
 
     // Heartbeat
     setInterval(async () => {
@@ -110,6 +112,7 @@ async function initVenom() {
       }
     }, 5 * 60 * 1000);
 
+    // Estados do cliente
     client.onStateChange(state => {
       const icons = {
         CONNECTED: '✅', TIMEOUT: '⏰', UNPAIRED: '🔌',
@@ -125,6 +128,7 @@ async function initVenom() {
 
     const imageBuffer = new Map();
 
+    // Recepção de mensagens
     client.onMessage(async message => {
       ultimoEvento = Date.now();
       const from = message.from;
@@ -141,7 +145,6 @@ async function initVenom() {
         try {
           const media = await client.decryptFile(message);
           const buffer = Buffer.from(media.data, 'base64');
-
           const form = new FormData();
           form.append('file', buffer, 'audio.ogg');
           form.append('model', 'whisper-1');
@@ -218,9 +221,9 @@ async function initVenom() {
     });
 
   } catch (err) {
-    console.error('❌ initVenom falhou:', err.stack || err);
+    console.error('❌ Erro ao iniciar bot:', err.stack || err);
     process.exit(1);
   }
 }
 
-initVenom();
+startBot();
