@@ -140,6 +140,8 @@ if (!media || !media.data) {
             { headers: { ...form.getHeaders(), Authorization: `Bearer ${OPENAI_API_KEY}` } }
           );
           const transcription = resp.data?.trim() || '';
+console.log(`📝 Transcrição: "${transcription}"`);
+
           // Envia áudio e transcrição
           await sendToN8n({
   telefone: from,
