@@ -91,6 +91,7 @@ async function startBot() {
     client.onMessage(async message => {
       ultimoEvento = Date.now();
       const from = message.from;
+      console.log('📨 Mensagem bruta:', JSON.stringify(message, null, 2));
 
       // Abordagem genérica para preview: tenta várias propriedades antes de fallback
 let preview = '[sem conteúdo]';
@@ -120,7 +121,10 @@ if (message.type === 'chat') {
 }
 
       // Áudio (ptt ou outro áudio)
-      if (message.isMedia && message.mimetype?.startsWith('audio/')) {
+      if (
+  (message.type === 'ptt' || message.type === 'audio') &&
+  message.mimetype?.includes('audio')
+) {
         try {
           const media = await client.decryptFile(message);
 if (!media || !media.data) {
