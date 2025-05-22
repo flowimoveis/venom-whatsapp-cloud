@@ -1,9 +1,11 @@
 {
   "name": "venom-whatsapp-cloud",
   "version": "1.0.0",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
-    "start": "node index.js",
-    "postinstall": "puppeteer install"
+    "start": "node index.js"
   },
   "dependencies": {
     "axios": "^1.3.0",
