@@ -27,13 +27,15 @@ app.use((req, _res, next) => {
 });
 app.get('/', (_req, res) => res.send('OK'));
 
-// Envio de mensagens via endpoint
+// Endpoint para envio de mensagens
 async function sendHandler(req, res) {
   const { phone, message } = req.method === 'GET'
     ? { phone: req.query.phone, message: req.query.message }
     : req.body;
-  if (!phone || !message) return res.status(400).json({ success: false, error: 'phone e message são obrigatórios.' });
-  if (!global.client) return res.status(503).json({ success: false, error: 'Bot não pronto.' });
+  if (!phone || !message)
+    return res.status(400).json({ success: false, error: 'phone e message são obrigatórios.' });
+  if (!global.client)
+    return res.status(503).json({ success: false, error: 'Bot não pronto.' });
   try {
     await global.client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
@@ -45,25 +47,43 @@ async function sendHandler(req, res) {
 app.route('/send').get(sendHandler).post(sendHandler);
 app.listen(PORT, () => console.log(`🚀 Servindo na porta ${PORT}`));
 
-// Inicia o bot
+// Inicialização do bot
 async function startBot() {
   try {
-    const client = await venom.create({ session: SESSION_NAME, multidevice: true, headless: 'new', disableSpins: true, disableWelcome: true, autoClose: 0 });
+    const client = await venom.create({
+      session: SESSION_NAME,
+      multidevice: true,
+      headless: 'new',
+      disableSpins: true,
+      disableWelcome: true,
+      autoClose: 0,
+    });
     global.client = client;
     console.log('✅ Bot pronto.');
 
     // Heartbeat e watchdog de 15 min
     let ultimoEvento = Date.now();
     setInterval(async () => {
-      try { await client.getHostDevice(); await client.sendPresenceAvailable(); }
-      catch (e) { console.error('❌ Heartbeat falhou:', e.message); }
+      try {
+        await client.getHostDevice();
+        await client.sendPresenceAvailable();
+      } catch (e) {
+        console.error('❌ Heartbeat falhou:', e.message);
+      }
       if (Date.now() - ultimoEvento > 15 * 60 * 1000) process.exit(1);
     }, 5 * 60 * 1000);
 
     client.onStateChange(state => {
-      const icons = { CONNECTED: '✅', TIMEOUT: '⏰', UNPAIRED: '🔌', CONFLICT: '⚠️', DISCONNECTED: '❗' };
-      console.log(`${icons[state]||'❔'} Estado: ${state}`);
-      if (['CONFLICT','UNPAIRED','TIMEOUT','DISCONNECTED'].includes(state)) client.restartService().catch(() => process.exit(1));
+      const icons = {
+        CONNECTED: '✅',
+        TIMEOUT: '⏰',
+        UNPAIRED: '🔌',
+        CONFLICT: '⚠️',
+        DISCONNECTED: '❗',
+      };
+      console.log(`${icons[state] || '❔'} Estado: ${state}`);
+      if (['CONFLICT', 'UNPAIRED', 'TIMEOUT', 'DISCONNECTED'].includes(state))
+        client.restartService().catch(() => process.exit(1));
     });
 
     const imageBuffer = new Map();
@@ -71,16 +91,13 @@ async function startBot() {
     client.onMessage(async message => {
       ultimoEvento = Date.now();
       const from = message.from;
-      const mimetype = message.mimetype || '';
-      // Preview sem undefined, incluindo áudio
-      const preview =
-        message.type === 'chat' ? message.body :
-        message.caption ? message.caption :
-        message.type === 'ptt' ? '<áudio recebido>' :
-        mimetype.startsWith('image/') ? '<imagem recebida>' :
-        message.isMedia ? `<${message.type} recebido>` :
-        '';
-      console.log(`🔔 Mensagem de ${from} [${message.type}]:`, preview);
+
+      // Simplifica geração de preview sem undefined
+      let preview = '';
+      if (message.body) preview = message.body;
+      else if (message.caption) preview = message.caption;
+      else preview = `<${message.type} recebido>`;
+      console.log(`🔔 Mensagem de ${from} [${message.type}]: ${preview}`);
 
       // Texto puro
       if (message.type === 'chat') {
@@ -89,33 +106,41 @@ async function startBot() {
         return;
       }
 
-      // Áudio (voz)
-      if (message.type === 'ptt') {
+      // Áudio (voz / ptt)
+      if (message.type === 'ptt' || (message.isMedia && message.mimetype?.startsWith('audio/'))) {
         try {
           const media = await client.decryptFile(message);
           const buffer = Buffer.from(media.data, 'base64');
-          // Transcrição Whisper
+          // Transcrição com Whisper
           const form = new FormData();
           form.append('file', buffer, 'audio.ogg');
           form.append('model', 'whisper-1');
           form.append('response_format', 'text');
-          const resp = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, { headers: { ...form.getHeaders(), Authorization: `Bearer ${OPENAI_API_KEY}` } });
+          const resp = await axios.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            form,
+            { headers: { ...form.getHeaders(), Authorization: `Bearer ${OPENAI_API_KEY}` } }
+          );
           const transcription = resp.data?.trim() || '';
-          // Envia áudio + transcrição
+          // Envia áudio e transcrição
           await sendToN8n({ telefone: from, type: 'audio', audio: buffer.toString('base64'), textoTranscrito: transcription });
           console.log('✅ Áudio e transcrição enviados.');
         } catch (e) {
-          console.error('❌ Erro no áudio:', e.message);
+          console.error('❌ Erro ao processar áudio:', e.message);
         }
         return;
       }
 
-      // Imagem (agrupada)
-      if (mimetype.startsWith('image/')) {
+      // Imagem (agrupamento)
+      if (message.isMedia && message.mimetype?.startsWith('image/')) {
         try {
           const media = await client.decryptFile(message);
           const entry = imageBuffer.get(from) || [];
-          entry.push({ filename: message.filename||`${Date.now()}`, mimetype, base64: media.toString('base64') });
+          entry.push({
+            filename: message.filename || `${Date.now()}`,
+            mimetype: message.mimetype,
+            base64: media.toString('base64'),
+          });
           imageBuffer.set(from, entry);
           clearTimeout(entry._timeout);
           entry._timeout = setTimeout(async () => {
@@ -124,12 +149,12 @@ async function startBot() {
             console.log('✅ Imagens agrupadas enviadas.');
           }, 7000);
         } catch (err) {
-          console.error('❌ Erro na imagem:', err.message);
+          console.error('❌ Erro ao processar imagem:', err.message);
         }
         return;
       }
 
-      // Outros tipos
+      // Outros tipos são ignorados
       console.log(`⚠️ Ignorado tipo: ${message.type}`);
     });
 
@@ -139,12 +164,12 @@ async function startBot() {
         const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 10000 });
         console.log(`✅ Enviado ao n8n (status ${res.status}).`);
       } catch (err) {
-        console.error('❌ Falha n8n:', err.message);
+        console.error('❌ Falha no envio ao n8n:', err.message);
       }
     }
 
   } catch (err) {
-    console.error('❌ Falha ao iniciar bot:', err);
+    console.error('❌ Falha na inicialização do bot:', err);
     process.exit(1);
   }
 }
