@@ -132,7 +132,15 @@ async function startBot() {
       const from = message.from;
       let text = '';
 
-      console.log('📩 Mensagem recebida:', message.type);
+      // Preview de conteúdo para logs, sem “undefined”
+      const preview = message.type === 'chat'
+        ? message.body
+        : message.caption
+          ? message.caption
+          : message.isMedia
+            ? `<${message.type} recebido>`
+            : '';
+      console.log(`🔔 Mensagem recebida de ${from} [${message.type}]:`, preview);
 
       switch (true) {
         case message.type === 'chat':
@@ -183,37 +191,4 @@ async function startBot() {
               imageBuffer.delete(from);
               try {
                 await axios.post(N8N_WEBHOOK_URL, { telefone: from, type: 'imagens', imagens: entry }, { timeout: 10000 });
-                console.log(`✅ Enviadas ${entry.length} imagem(ns) agrupadas ao n8n.`);
-              } catch (sendErr) {
-                console.error('❌ Falha ao enviar imagens agrupadas:', sendErr.message);
-              }
-            }, 7000);
-          } catch (err) {
-            console.error('❌ Erro ao processar mídia:', err.message);
-          }
-          return;
-        }
-
-        default:
-          console.log(`⚠️ Tipo não suportado: ${message.type}. Ignorando.`);
-          return;
-      }
-
-      text = text.trim();
-      console.log(text ? `📨 Texto de ${from}: "${text}"` : `📨 ${from} – mensagem sem texto.`);
-
-      try {
-        const res = await axios.post(N8N_WEBHOOK_URL, { telefone: from, mensagem: text, type: message.type }, { timeout: 5000 });
-        console.log(`✅ Payload enviado ao n8n (status ${res.status}).`);
-      } catch (err) {
-        console.error('❌ Erro ao enviar payload ao n8n:', err.message);
-      }
-    });
-
-  } catch (startupError) {
-    console.error('❌ Erro na inicialização do bot:', startupError);
-    process.exit(1);
-  }
-}
-
-startBot();
+                console.log(`✅ Enviadas ${entry.length} imagem(ns) agrupadas ao n8n.`);```
