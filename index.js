@@ -93,12 +93,18 @@ async function startBot() {
       const from = message.from;
 
       // Abordagem genérica para preview: tenta várias propriedades antes de fallback
-const preview =
-  message.body?.slice?.(0, 50) ||
-  message.caption?.slice?.(0, 50) ||
-  (message.type === 'ptt' ? '[Áudio de voz]' :
-   message.type === 'image' ? '[Imagem]' :
-   `[${message.type} recebido]`);
+let preview = '[sem conteúdo]';
+if (message.body) {
+  preview = message.body.slice(0, 50);
+} else if (message.caption) {
+  preview = message.caption.slice(0, 50);
+} else if (message.type === 'audio') {
+  preview = '[Áudio recebido]';
+} else if (message.type === 'image') {
+  preview = '[Imagem recebida]';
+} else {
+  preview = `[${message.type} recebido]`;
+}
 
 console.log(`🔔 Mensagem recebida: ${from} → ${preview}`);
 
