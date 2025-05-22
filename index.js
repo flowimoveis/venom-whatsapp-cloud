@@ -108,8 +108,7 @@ if (message.type === 'chat') {
     mensagem: text,
   });
   return;
-});
-
+}
 
       // Áudio (ptt ou outro áudio)
       if (message.isMedia && message.mimetype?.startsWith('audio/')) {
