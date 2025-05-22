@@ -123,6 +123,11 @@ if (message.type === 'chat') {
       if (message.isMedia && message.mimetype?.startsWith('audio/')) {
         try {
           const media = await client.decryptFile(message);
+if (!media || !media.data) {
+  console.error('⚠️ Não foi possível decodificar o áudio.');
+  return;
+}
+
           const buffer = Buffer.from(media.data, 'base64');
           // Transcrição com Whisper
           const form = new FormData();
