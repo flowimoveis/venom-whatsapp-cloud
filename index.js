@@ -5,8 +5,13 @@ const venom = require('venom-bot');
 const axios = require('axios');
 const FormData = require('form-data');
 
+process.env.CHROME_BIN = '/usr/bin/google-chrome-stable';
+process.env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/google-chrome-stable';
+const SESSION_PATH = '/tmp/bot-session';
+
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 const PORT = process.env.PORT || 3000;
+
 
 process.on('unhandledRejection', (reason, p) => {
   console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
