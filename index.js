@@ -121,18 +121,23 @@ async function initVenom() {
     });
 
     // Handler de mensagens
+       // Buffer de imagens por número
+    const imageBuffer = new Map();
+
     client.onMessage(async message => {
       ultimoEvento = Date.now();
-
-      // DEBUG: payload completo
-      console.log('🔍 onMessage payload:', JSON.stringify(message, null, 2));
 
       const from = message.from;
       const type = message.type;
       let   text = '';
 
+      console.log('🔍 onMessage payload:', JSON.stringify(message, null, 2));
+
+      // 🟢 Texto comum
       if (type === 'chat') {
         text = message.body;
+
+      // 🎤 Áudio (ptt)
       } else if (type === 'ptt') {
         try {
           const media  = await client.decryptFile(message);
@@ -158,13 +163,54 @@ async function initVenom() {
           console.error('❌ Transcrição falhou:', e.message);
           return;
         }
+
+      // 🖼️ Imagem recebida
+      } else if (message.isMedia || type === 'image') {
+        try {
+          const media = await client.decryptFile(message);
+          const base64 = media.toString('base64');
+          const mimetype = message.mimetype || 'image/jpeg';
+          const filename = message.filename || `${Date.now()}.jpg`;
+
+          if (!imageBuffer.has(from)) {
+            imageBuffer.set(from, []);
+          }
+
+          const entry = imageBuffer.get(from);
+          entry.push({ filename, base64, mimetype });
+
+          // 🔁 Reinicia o timer a cada nova imagem
+          clearTimeout(entry._timeout);
+          entry._timeout = setTimeout(async () => {
+            const imagens = imageBuffer.get(from).filter(i => i.filename);
+            imageBuffer.delete(from);
+
+            try {
+              await axios.post(
+                N8N_WEBHOOK_URL,
+                {
+                  telefone: from,
+                  type: 'imagens',
+                  imagens // array [{ filename, base64, mimetype }]
+                },
+                { timeout: 10000 }
+              );
+              console.log(`✅ Enviadas ${imagens.length} imagem(ns) agrupadas ao n8n`);
+            } catch (err) {
+              console.error('❌ Erro ao enviar imagens agrupadas:', err.message);
+            }
+          }, 7000); // Aguarda 7s sem novas imagens
+        } catch (e) {
+          console.error('❌ Erro ao processar imagem:', e.message);
+        }
+        return; // não envia imagem como texto
       } else {
-        console.log(`⚠️ Ignorando mensagem type="${type}"`);
+        console.log(`⚠️ Ignorando tipo "${type}"`);
         return;
       }
 
       if (!text) {
-        console.log(`⚠️ Texto vazio para type="${type}", ignorando.`);
+        console.log(`⚠️ Texto vazio, ignorado.`);
         return;
       }
 
@@ -181,12 +227,3 @@ async function initVenom() {
         console.error('❌ Erro ao chamar webhook:', err.message);
       }
     });
-
-  } catch (err) {
-    console.error('❌ initVenom falhou:', err.stack || err);
-    process.exit(1);
-  }
-}
-
-// Inicia o bot
-initVenom();
