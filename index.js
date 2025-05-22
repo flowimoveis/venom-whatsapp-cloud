@@ -69,7 +69,7 @@ async function initVenom() {
     const client = await venom.create({
       session: '/tmp/bot-session',
       multidevice: true,
-      headless: true,
+      headless: 'new',
       disableSpins: true,
       disableWelcome: true,
       autoClose: 0,
