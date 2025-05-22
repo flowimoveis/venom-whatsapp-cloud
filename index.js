@@ -102,9 +102,13 @@ console.log(`🔔 De ${from} [${message.type}]: ${preview}`);
       // Texto puro
       if (message.type === 'chat') {
         const text = message.body.trim();
-        await sendToN8n({ telefone: from, mensagem: text, type: 'text' });
-        return;
-      }
+        await sendToN8n({
+  telefone: from,
+  type: 'audio',
+  mensagem: transcription, // chave que o n8n já espera
+  textoTranscrito: transcription,
+});
+
 
       // Áudio (ptt ou outro áudio)
       if (message.isMedia && message.mimetype?.startsWith('audio/')) {
