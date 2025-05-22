@@ -5,15 +5,11 @@ const venom = require('venom-bot');
 const axios = require('axios');
 const FormData = require('form-data');
 
-process.env.CHROME_BIN = '/usr/bin/google-chrome-stable';
-process.env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/google-chrome-stable';
-const SESSION_NAME = 'bot-session'; // sem caminho absoluto
-
-
+const SESSION_NAME = 'bot-session'; // nome simples, evita erro de permissão
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 const PORT = process.env.PORT || 3000;
 
-
+// Logs de erros globais
 process.on('unhandledRejection', (reason, p) => {
   console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
 });
@@ -72,29 +68,29 @@ app.listen(PORT, () => {
 
 async function initVenom() {
   try {
-const client = await venom.create({
-  session: SESSION_PATH,
-  multidevice: true,
-  headless: 'new',
-  disableSpins: true,
-  disableWelcome: true,
-  autoClose: 0,
-  browserArgs: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--single-process',
-    '--no-zygote',
-    '--disable-software-rasterizer',
-    '--remote-debugging-port=9222'
-  ],
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH
-});
+    const client = await venom.create({
+      session: SESSION_NAME,
+      multidevice: true,
+      headless: 'new',
+      disableSpins: true,
+      disableWelcome: true,
+      autoClose: 0,
+      browserArgs: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+        '--disable-software-rasterizer',
+        '--remote-debugging-port=9222'
+      ]
+    });
 
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
+    // Heartbeat
     setInterval(async () => {
       try {
         await client.getHostDevice();
@@ -105,6 +101,7 @@ const client = await venom.create({
       }
     }, 5 * 60 * 1000);
 
+    // Watchdog
     let ultimoEvento = Date.now();
     setInterval(() => {
       if ((Date.now() - ultimoEvento) > 15 * 60 * 1000) {
@@ -134,10 +131,12 @@ const client = await venom.create({
       const type = message.type;
       let text = '';
 
-      console.log('🔍 onMessage payload:', JSON.stringify(message, null, 2));
+      console.log('📩 Tipo:', type);
+      console.log('🔍 Payload:', JSON.stringify(message, null, 2));
 
       if (type === 'chat') {
         text = message.body;
+
       } else if (type === 'ptt') {
         try {
           const media = await client.decryptFile(message);
@@ -154,8 +153,8 @@ const client = await venom.create({
             {
               headers: {
                 ...form.getHeaders(),
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-              },
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+              }
             }
           );
           text = resp.data.trim();
@@ -163,6 +162,7 @@ const client = await venom.create({
           console.error('❌ Transcrição falhou:', e.message);
           return;
         }
+
       } else if (message.isMedia || type === 'image') {
         try {
           const media = await client.decryptFile(message);
@@ -170,10 +170,7 @@ const client = await venom.create({
           const mimetype = message.mimetype || 'image/jpeg';
           const filename = message.filename || `${Date.now()}.jpg`;
 
-          if (!imageBuffer.has(from)) {
-            imageBuffer.set(from, []);
-          }
-
+          if (!imageBuffer.has(from)) imageBuffer.set(from, []);
           const entry = imageBuffer.get(from);
           entry.push({ filename, base64, mimetype });
 
@@ -181,15 +178,10 @@ const client = await venom.create({
           entry._timeout = setTimeout(async () => {
             const imagens = imageBuffer.get(from).filter(i => i.filename);
             imageBuffer.delete(from);
-
             try {
               await axios.post(
                 N8N_WEBHOOK_URL,
-                {
-                  telefone: from,
-                  type: 'imagens',
-                  imagens
-                },
+                { telefone: from, type: 'imagens', imagens },
                 { timeout: 10000 }
               );
               console.log(`✅ Enviadas ${imagens.length} imagem(ns) agrupadas ao n8n`);
@@ -202,16 +194,16 @@ const client = await venom.create({
         }
         return;
       } else {
-        console.log(`⚠️ Ignorando tipo "${type}"`);
+        console.log(`⚠️ Tipo "${type}" ignorado.`);
         return;
       }
 
       if (!text) {
-        console.log(`⚠️ Texto vazio, ignorado.`);
+        console.log('⚠️ Texto vazio. Ignorado.');
         return;
       }
 
-      console.log(`🔔 Mensagem de ${from} (type=${type}): "${text}"`);
+      console.log(`📨 De ${from}: "${text}"`);
 
       try {
         const res = await axios.post(
@@ -219,9 +211,9 @@ const client = await venom.create({
           { telefone: from, mensagem: text, type },
           { timeout: 5000 }
         );
-        console.log(`✅ Dados enviados ao n8n com status ${res.status}`);
+        console.log(`✅ Enviado ao n8n: ${res.status}`);
       } catch (err) {
-        console.error('❌ Erro ao chamar webhook:', err.message);
+        console.error('❌ Erro ao enviar para n8n:', err.message);
       }
     });
 
