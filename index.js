@@ -223,7 +223,14 @@ async function initVenom() {
           { timeout: 5000 }
         );
         console.log(`✅ Dados enviados ao n8n com status ${res.status}`);
-      } catch (err) {
-        console.error('❌ Erro ao chamar webhook:', err.message);
-      }
     });
+  } catch (err) {
+    console.error('❌ initVenom falhou:', err.stack || err);
+    process.exit(1);
+  }
+}
+
+// Inicia o bot
+initVenom();
+
+
