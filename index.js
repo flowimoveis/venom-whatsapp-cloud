@@ -72,14 +72,14 @@ async function startBot() {
       ultimoEvento = Date.now();
       const from = message.from;
       const mimetype = message.mimetype || '';
-      // Geração de preview sem undefined
-      const preview = message.type === 'chat'
-        ? message.body
-        : mimetype.startsWith('image/') && message.caption
-          ? message.caption
-          : message.isMedia
-            ? `<${mimetype}>`
-            : '';
+      // Preview sem undefined, incluindo áudio
+      const preview =
+        message.type === 'chat' ? message.body :
+        message.caption ? message.caption :
+        message.type === 'ptt' ? '<áudio recebido>' :
+        mimetype.startsWith('image/') ? '<imagem recebida>' :
+        message.isMedia ? `<${message.type} recebido>` :
+        '';
       console.log(`🔔 Mensagem de ${from} [${message.type}]:`, preview);
 
       // Texto puro
@@ -90,7 +90,7 @@ async function startBot() {
       }
 
       // Áudio (voz)
-      if (message.isMedia && mimetype.startsWith('audio/')) {
+      if (message.type === 'ptt') {
         try {
           const media = await client.decryptFile(message);
           const buffer = Buffer.from(media.data, 'base64');
@@ -111,7 +111,7 @@ async function startBot() {
       }
 
       // Imagem (agrupada)
-      if (message.isMedia && mimetype.startsWith('image/')) {
+      if (mimetype.startsWith('image/')) {
         try {
           const media = await client.decryptFile(message);
           const entry = imageBuffer.get(from) || [];
