@@ -6,47 +6,50 @@ const axios = require('axios');
 const FormData = require('form-data');
 
 const SESSION_NAME = 'bot-session';
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const PORT = process.env.PORT || 3000;
+const { N8N_WEBHOOK_URL, PORT = 3000, OPENAI_API_KEY } = process.env;
 
-// Logs globais
-process.on('unhandledRejection', (reason, p) => {
-  console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
-});
-process.on('uncaughtException', err => {
-  console.error('🚨 Uncaught Exception:', err);
-});
+// Validações iniciais
+if (!N8N_WEBHOOK_URL) {
+  console.error('❌ Variável de ambiente N8N_WEBHOOK_URL não definida.');
+  process.exit(1);
+}
+if (!OPENAI_API_KEY) {
+  console.error('❌ Variável de ambiente OPENAI_API_KEY não definida.');
+  process.exit(1);
+}
 
-console.log('⚙️ ENV:', { N8N_WEBHOOK_URL, PORT });
-
+// Configura servidor HTTP
 const app = express();
 app.use(express.json({
   strict: true,
   verify(req, _res, buf) {
-    try { JSON.parse(buf); }
-    catch (err) {
-      console.error('❌ JSON inválido:', buf.toString());
+    try {
+      JSON.parse(buf);
+    } catch (err) {
+      console.error('❌ JSON inválido recebido:', buf.toString());
       throw err;
     }
   }
 }));
 
+// Logger de requests brutos
 app.use((req, _res, next) => {
   if (req.method === 'POST' && req.body) {
-    console.log('📥 RAW BODY:', JSON.stringify(req.body));
+    console.log('📥 BODY RECEBIDO:', JSON.stringify(req.body));
   }
   next();
 });
 
 app.get('/', (_req, res) => res.send('OK'));
 
+// Handler unificado para envio de mensagens
 async function sendHandler(req, res) {
-  const isGet = req.method === 'GET';
-  const phone = isGet ? req.query.phone : req.body.phone;
-  const message = isGet ? req.query.message : req.body.message;
+  const { phone, message } = req.method === 'GET'
+    ? { phone: req.query.phone, message: req.query.message }
+    : req.body;
 
   if (!phone || !message) {
-    return res.status(400).json({ success: false, error: 'phone e message obrigatórios' });
+    return res.status(400).json({ success: false, error: 'phone e message são obrigatórios.' });
   }
   if (!global.client) {
     return res.status(503).json({ success: false, error: 'Bot não está pronto.' });
@@ -56,18 +59,16 @@ async function sendHandler(req, res) {
     await global.client.sendText(`${phone}@c.us`, message);
     return res.json({ success: true });
   } catch (err) {
-    console.error(`❌ Erro ao enviar mensagem:`, err.message);
+    console.error('❌ Falha ao enviar mensagem:', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 }
-app.get('/send', sendHandler);
-app.post('/send', sendHandler);
+app.route('/send').get(sendHandler).post(sendHandler);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
+// Inicia servidor HTTP
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
 
-// Inicialização do bot
+// Inicialização do bot WhatsApp
 async function startBot() {
   try {
     const client = await venom.create({
@@ -83,42 +84,38 @@ async function startBot() {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--single-process',
-        '--no-zygote',
         '--disable-software-rasterizer',
         '--remote-debugging-port=9222'
       ]
     });
 
     global.client = client;
-    console.log('✅ Bot conectado e pronto.');
+    console.log('✅ Bot autenticado e pronto.');
 
-    // Heartbeat
+    // Heartbeat a cada 5 minutos
     setInterval(async () => {
       try {
         await client.getHostDevice();
         await client.sendPresenceAvailable();
         console.log('📡 Heartbeat enviado.');
-      } catch (e) {
-        console.error('❌ Heartbeat falhou:', e.message);
+      } catch (heartbeatError) {
+        console.error('❌ Heartbeat falhou:', heartbeatError.message);
       }
     }, 5 * 60 * 1000);
 
-    // Watchdog
+    // Watchdog: reinicia se não houver eventos por 15min
     let ultimoEvento = Date.now();
     setInterval(() => {
-      if ((Date.now() - ultimoEvento) > 15 * 60 * 1000) {
-        console.error('🛑 Sem eventos >15min, saindo para PM2 reiniciar');
+      if (Date.now() - ultimoEvento > 15 * 60 * 1000) {
+        console.error('🛑 Sem eventos >15min, encerrando para reinicialização.');
         process.exit(1);
       }
     }, 5 * 60 * 1000);
 
-    // Estados do cliente
+    // Tratamento de mudança de estado
     client.onStateChange(state => {
-      const icons = {
-        CONNECTED: '✅', TIMEOUT: '⏰', UNPAIRED: '🔌',
-        CONFLICT: '⚠️', DISCONNECTED: '❗'
-      };
-      console.log(`${icons[state] || '❔'} State: ${state}`);
+      const icons = { CONNECTED: '✅', TIMEOUT: '⏰', UNPAIRED: '🔌', CONFLICT: '⚠️', DISCONNECTED: '❗' };
+      console.log(`${icons[state] || '❔'} Estado: ${state}`);
       if (['CONFLICT', 'UNPAIRED', 'TIMEOUT', 'DISCONNECTED'].includes(state)) {
         client.restartService()
           .then(() => console.log('🔁 Serviço reiniciado.'))
@@ -126,112 +123,95 @@ async function startBot() {
       }
     });
 
+    // Buffer temporário para agrupar imagens
     const imageBuffer = new Map();
 
-    // Recepção de mensagens
+    // Manipulador de mensagens
     client.onMessage(async message => {
       ultimoEvento = Date.now();
       const from = message.from;
-      const type = message.type;
       let text = '';
 
-      console.log('📩 Tipo:', type);
-      console.log('🔍 Payload:', JSON.stringify(message, null, 2));
+      console.log('📩 Mensagem recebida:', message.type);
 
-      if (type === 'chat') {
-        text = message.body;
+      switch (true) {
+        case message.type === 'chat':
+          text = message.body;
+          break;
 
-      } else if (type === 'ptt') {
-        try {
-          const media = await client.decryptFile(message);
-          const buffer = Buffer.from(media.data, 'base64');
+        case message.type === 'ptt': {
+          try {
+            const media = await client.decryptFile(message);
+            const buffer = Buffer.from(media.data, 'base64');
+            const form = new FormData();
+            form.append('file', buffer, 'audio.ogg');
+            form.append('model', 'whisper-1');
+            form.append('response_format', 'text');
 
-          const form = new FormData();
-          form.append('file', buffer, 'audio.ogg');
-          form.append('model', 'whisper-1');
-          form.append('response_format', 'text');
+            const resp = await axios.post(
+              'https://api.openai.com/v1/audio/transcriptions',
+              form,
+              { headers: { ...form.getHeaders(), Authorization: `Bearer ${OPENAI_API_KEY}` } }
+            );
 
-          const resp = await axios.post(
-            'https://api.openai.com/v1/audio/transcriptions',
-            form,
-            {
-              headers: {
-                ...form.getHeaders(),
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-              },
-            }
-          );
-
-          if (resp.data && typeof resp.data === 'string' && resp.data.trim()) {
-            text = resp.data.trim();
-          } else {
-            console.warn('⚠️ Whisper retornou vazio ou inválido.');
+            text = resp.data?.trim() || '';
+            if (!text) console.warn('⚠️ Whisper retornou texto vazio.');
+          } catch (err) {
+            console.error('❌ Erro na transcrição:', err.message);
             return;
           }
-        } catch (e) {
-          console.error('❌ Transcrição falhou:', e.message);
+          break;
+        }
+
+        case (message.isMedia || message.type === 'image') && message.caption:
+          text = message.caption.trim();
+          break;
+
+        case message.isMedia || message.type === 'image': {
+          try {
+            const media = await client.decryptFile(message);
+            const mimetype = message.mimetype || 'image/jpeg';
+            const filename = message.filename || `${Date.now()}.jpg`;
+            const base64 = media.toString('base64');
+
+            if (!imageBuffer.has(from)) imageBuffer.set(from, []);
+            const entry = imageBuffer.get(from);
+            entry.push({ filename, base64, mimetype });
+
+            clearTimeout(entry._timeout);
+            entry._timeout = setTimeout(async () => {
+              imageBuffer.delete(from);
+              try {
+                await axios.post(N8N_WEBHOOK_URL, { telefone: from, type: 'imagens', imagens: entry }, { timeout: 10000 });
+                console.log(`✅ Enviadas ${entry.length} imagem(ns) agrupadas ao n8n.`);
+              } catch (sendErr) {
+                console.error('❌ Falha ao enviar imagens agrupadas:', sendErr.message);
+              }
+            }, 7000);
+          } catch (err) {
+            console.error('❌ Erro ao processar mídia:', err.message);
+          }
           return;
         }
 
-      } else if ((message.isMedia || type === 'image') && message.caption) {
-        text = message.caption.trim();
-
-      } else if (message.isMedia || type === 'image') {
-        try {
-          const media = await client.decryptFile(message);
-          const base64 = media.toString('base64');
-          const mimetype = message.mimetype || 'image/jpeg';
-          const filename = message.filename || `${Date.now()}.jpg`;
-
-          if (!imageBuffer.has(from)) imageBuffer.set(from, []);
-          const entry = imageBuffer.get(from);
-          entry.push({ filename, base64, mimetype });
-
-          clearTimeout(entry._timeout);
-          entry._timeout = setTimeout(async () => {
-            const imagens = imageBuffer.get(from).filter(i => i.filename);
-            imageBuffer.delete(from);
-            try {
-              await axios.post(
-                N8N_WEBHOOK_URL,
-                { telefone: from, type: 'imagens', imagens },
-                { timeout: 10000 }
-              );
-              console.log(`✅ Enviadas ${imagens.length} imagem(ns) agrupadas ao n8n`);
-            } catch (err) {
-              console.error('❌ Erro ao enviar imagens agrupadas:', err.message);
-            }
-          }, 7000);
-        } catch (e) {
-          console.error('❌ Erro ao processar imagem:', e.message);
-        }
-        return;
-
-      } else {
-        console.log(`⚠️ Tipo "${type}" ignorado.`);
-        return;
+        default:
+          console.log(`⚠️ Tipo não suportado: ${message.type}. Ignorando.`);
+          return;
       }
 
-      if (text && text.trim()) {
-        console.log(`📨 De ${from}: "${text}"`);
-      } else {
-        console.log(`📨 De ${from} – mensagem sem texto (type: ${type})`);
-      }
+      text = text.trim();
+      console.log(text ? `📨 Texto de ${from}: "${text}"` : `📨 ${from} – mensagem sem texto.`);
 
       try {
-        const res = await axios.post(
-          N8N_WEBHOOK_URL,
-          { telefone: from, mensagem: text, type },
-          { timeout: 5000 }
-        );
-        console.log(`✅ Enviado ao n8n: ${res.status}`);
+        const res = await axios.post(N8N_WEBHOOK_URL, { telefone: from, mensagem: text, type: message.type }, { timeout: 5000 });
+        console.log(`✅ Payload enviado ao n8n (status ${res.status}).`);
       } catch (err) {
-        console.error('❌ Erro ao enviar para n8n:', err.message);
+        console.error('❌ Erro ao enviar payload ao n8n:', err.message);
       }
     });
 
-  } catch (err) {
-    console.error('❌ Erro ao iniciar bot:', err.stack || err);
+  } catch (startupError) {
+    console.error('❌ Erro na inicialização do bot:', startupError);
     process.exit(1);
   }
 }
