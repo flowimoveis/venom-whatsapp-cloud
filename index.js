@@ -141,30 +141,37 @@ async function startBot() {
       if (type === 'chat') {
         text = message.body;
 
-      } else if (type === 'ptt') {
-        try {
-          const media = await client.decryptFile(message);
-          const buffer = Buffer.from(media.data, 'base64');
-          const form = new FormData();
-          form.append('file', buffer, 'audio.ogg');
-          form.append('model', 'whisper-1');
-          form.append('response_format', 'text');
+} else if (type === 'ptt') {
+  try {
+    const media = await client.decryptFile(message);
+    const buffer = Buffer.from(media.data, 'base64');
 
-          const resp = await axios.post(
-            'https://api.openai.com/v1/audio/transcriptions',
-            form,
-            {
-              headers: {
-                ...form.getHeaders(),
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-              }
-            }
-          );
-          text = resp.data.trim();
-        } catch (e) {
-          console.error('❌ Transcrição falhou:', e.message);
-          return;
-        }
+    const form = new FormData();
+    form.append('file', buffer, 'audio.ogg');
+    form.append('model', 'whisper-1');
+    form.append('response_format', 'text');
+
+    const resp = await axios.post(
+      'https://api.openai.com/v1/audio/transcriptions',
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+      }
+    );
+
+    if (resp.data && typeof resp.data === 'string' && resp.data.trim()) {
+      text = resp.data.trim();
+    } else {
+      console.warn('⚠️ Whisper retornou vazio ou inválido.');
+      return;
+    }
+  } catch (e) {
+    console.error('❌ Transcrição falhou:', e.message);
+    return;
+  }
 
       } else if (message.isMedia || type === 'image') {
         try {
