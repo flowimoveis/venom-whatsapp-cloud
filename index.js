@@ -91,7 +91,12 @@ async function startBot() {
     client.onMessage(async message => {
       ultimoEvento = Date.now();
       const from = message.from;
-      console.log('📨 Mensagem bruta:', JSON.stringify(message, null, 2));
+      console.dir(message, { depth: null, colors: true });
+      console.log('📨 Tipo:', message.type);
+      console.log('📨 Mimetype:', message.mimetype);
+      console.log('📨 isMedia:', message.isMedia);
+      console.log('📨 hasMedia:', message.mediaData?.type);
+
 
       // Abordagem genérica para preview: tenta várias propriedades antes de fallback
 let preview = '[sem conteúdo]';
