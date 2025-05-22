@@ -66,23 +66,25 @@ app.listen(PORT, () => {
 
 async function initVenom() {
   try {
-    const client = await venom.create({
-      session: '/tmp/bot-session',
-      multidevice: true,
-      headless: 'new',
-      disableSpins: true,
-      disableWelcome: true,
-      autoClose: 0,
-      browserArgs: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process',
-        '--no-zygote',
-        '--disable-software-rasterizer'
-      ],
-    });
+const client = await venom.create({
+  session: SESSION_PATH,
+  multidevice: true,
+  headless: 'new',
+  disableSpins: true,
+  disableWelcome: true,
+  autoClose: 0,
+  browserArgs: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--single-process',
+    '--no-zygote',
+    '--disable-software-rasterizer',
+    '--remote-debugging-port=9222'
+  ],
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH
+});
 
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
