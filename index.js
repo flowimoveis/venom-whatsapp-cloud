@@ -1,15 +1,13 @@
-// index.js – Servidor Express + Venom Bot (texto & áudio)
+// index.js – Servidor Express + Venom Bot (texto, áudio e imagens)
 require('dotenv').config();
 const express = require('express');
-const venom   = require('venom-bot');
-const axios   = require('axios');
+const venom = require('venom-bot');
+const axios = require('axios');
 const FormData = require('form-data');
 
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-const PORT            = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-////////////////////////////////////////////////////////////////////////////////
-// Tratamento de erros globais
 process.on('unhandledRejection', (reason, p) => {
   console.error('🚨 Unhandled Rejection at:', p, 'reason:', reason);
 });
@@ -19,8 +17,6 @@ process.on('uncaughtException', err => {
 
 console.log('⚙️ ENV:', { N8N_WEBHOOK_URL, PORT });
 
-////////////////////////////////////////////////////////////////////////////////
-// Configuração do Express
 const app = express();
 app.use(express.json({
   strict: true,
@@ -33,7 +29,6 @@ app.use(express.json({
   }
 }));
 
-// Log de todos os bodies recebidos
 app.use((req, _res, next) => {
   if (req.method === 'POST' && req.body) {
     console.log('📥 RAW BODY:', JSON.stringify(req.body));
@@ -43,10 +38,9 @@ app.use((req, _res, next) => {
 
 app.get('/', (_req, res) => res.send('OK'));
 
-// Endpoint /send para disparar mensagens via Venom
 async function sendHandler(req, res) {
-  const isGet   = req.method === 'GET';
-  const phone   = isGet ? req.query.phone   : req.body.phone;
+  const isGet = req.method === 'GET';
+  const phone = isGet ? req.query.phone : req.body.phone;
   const message = isGet ? req.query.message : req.body.message;
 
   if (!phone || !message) {
@@ -63,30 +57,36 @@ async function sendHandler(req, res) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
-app.get ('/send', sendHandler);
+app.get('/send', sendHandler);
 app.post('/send', sendHandler);
 
 app.listen(PORT, () => {
   console.log(`🚀 Express rodando na porta ${PORT}`);
 });
 
-////////////////////////////////////////////////////////////////////////////////
-// Inicialização do Venom
 async function initVenom() {
   try {
     const client = await venom.create({
-      session: '/app/tokens/bot-session',
+      session: '/tmp/bot-session',
       multidevice: true,
-      headless: 'new',
+      headless: true,
+      disableSpins: true,
+      disableWelcome: true,
+      autoClose: 0,
       browserArgs: [
-        '--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage',
-        '--disable-gpu','--single-process','--no-zygote','--disable-software-rasterizer'
-      ]
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+        '--disable-software-rasterizer'
+      ],
     });
+
     global.client = client;
     console.log('✅ Bot autenticado e pronto.');
 
-    // Heartbeat a cada 5 min
     setInterval(async () => {
       try {
         await client.getHostDevice();
@@ -97,7 +97,6 @@ async function initVenom() {
       }
     }, 5 * 60 * 1000);
 
-    // Watchdog reinicia se sem eventos por >15 min
     let ultimoEvento = Date.now();
     setInterval(() => {
       if ((Date.now() - ultimoEvento) > 15 * 60 * 1000) {
@@ -106,41 +105,34 @@ async function initVenom() {
       }
     }, 5 * 60 * 1000);
 
-    // Tratamento de estado
     client.onStateChange(state => {
       const icons = {
         CONNECTED: '✅', TIMEOUT: '⏰', UNPAIRED: '🔌',
         CONFLICT: '⚠️', DISCONNECTED: '❗'
       };
-      console.log(`${icons[state]||'❔'} State: ${state}`);
-      if (['CONFLICT','UNPAIRED','TIMEOUT','DISCONNECTED'].includes(state)) {
+      console.log(`${icons[state] || '❔'} State: ${state}`);
+      if (['CONFLICT', 'UNPAIRED', 'TIMEOUT', 'DISCONNECTED'].includes(state)) {
         client.restartService()
           .then(() => console.log('🔁 Serviço reiniciado.'))
           .catch(() => process.exit(1));
       }
     });
 
-    // Handler de mensagens
-       // Buffer de imagens por número
     const imageBuffer = new Map();
 
     client.onMessage(async message => {
       ultimoEvento = Date.now();
-
       const from = message.from;
       const type = message.type;
-      let   text = '';
+      let text = '';
 
       console.log('🔍 onMessage payload:', JSON.stringify(message, null, 2));
 
-      // 🟢 Texto comum
       if (type === 'chat') {
         text = message.body;
-
-      // 🎤 Áudio (ptt)
       } else if (type === 'ptt') {
         try {
-          const media  = await client.decryptFile(message);
+          const media = await client.decryptFile(message);
           const buffer = Buffer.from(media.data, 'base64');
 
           const form = new FormData();
@@ -163,8 +155,6 @@ async function initVenom() {
           console.error('❌ Transcrição falhou:', e.message);
           return;
         }
-
-      // 🖼️ Imagem recebida
       } else if (message.isMedia || type === 'image') {
         try {
           const media = await client.decryptFile(message);
@@ -179,7 +169,6 @@ async function initVenom() {
           const entry = imageBuffer.get(from);
           entry.push({ filename, base64, mimetype });
 
-          // 🔁 Reinicia o timer a cada nova imagem
           clearTimeout(entry._timeout);
           entry._timeout = setTimeout(async () => {
             const imagens = imageBuffer.get(from).filter(i => i.filename);
@@ -191,7 +180,7 @@ async function initVenom() {
                 {
                   telefone: from,
                   type: 'imagens',
-                  imagens // array [{ filename, base64, mimetype }]
+                  imagens
                 },
                 { timeout: 10000 }
               );
@@ -199,11 +188,11 @@ async function initVenom() {
             } catch (err) {
               console.error('❌ Erro ao enviar imagens agrupadas:', err.message);
             }
-          }, 7000); // Aguarda 7s sem novas imagens
+          }, 7000);
         } catch (e) {
           console.error('❌ Erro ao processar imagem:', e.message);
         }
-        return; // não envia imagem como texto
+        return;
       } else {
         console.log(`⚠️ Ignorando tipo "${type}"`);
         return;
@@ -226,16 +215,12 @@ async function initVenom() {
       } catch (err) {
         console.error('❌ Erro ao chamar webhook:', err.message);
       }
-    }); // <-- fechamento do client.onMessage
+    });
+
   } catch (err) {
     console.error('❌ initVenom falhou:', err.stack || err);
     process.exit(1);
   }
 }
 
-// Inicia o bot
 initVenom();
-
-initVenom();
-
-
