@@ -92,11 +92,9 @@ async function startBot() {
       ultimoEvento = Date.now();
       const from = message.from;
 
-      // Simplifica geração de preview sem undefined
-      let preview = '';
-      if (message.body) preview = message.body;
-      else if (message.caption) preview = message.caption;
-      else preview = `<${message.type} recebido>`;
+      // Abordagem genérica para preview: tenta várias propriedades antes de fallback
+      const preview = [message.body, message.caption, message.content, message.text]
+        .filter(Boolean)[0] || `<${message.type} recebido>`;
       console.log(`🔔 Mensagem de ${from} [${message.type}]: ${preview}`);
 
       // Texto puro
@@ -106,8 +104,8 @@ async function startBot() {
         return;
       }
 
-      // Áudio (voz / ptt)
-      if (message.type === 'ptt' || (message.isMedia && message.mimetype?.startsWith('audio/'))) {
+      // Áudio (ptt ou outro áudio)
+      if (message.isMedia && message.mimetype?.startsWith('audio/')) {
         try {
           const media = await client.decryptFile(message);
           const buffer = Buffer.from(media.data, 'base64');
