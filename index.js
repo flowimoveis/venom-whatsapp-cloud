@@ -130,7 +130,14 @@ if (message.type === 'chat') {
           );
           const transcription = resp.data?.trim() || '';
           // Envia áudio e transcrição
-          await sendToN8n({ telefone: from, type: 'audio', audio: buffer.toString('base64'), textoTranscrito: transcription });
+          await sendToN8n({
+  telefone: from,
+  type: 'audio',
+  mensagem: transcription,
+  textoTranscrito: transcription,
+  audio: buffer.toString('base64'),
+});
+
           console.log('✅ Áudio e transcrição enviados.');
         } catch (e) {
           console.error('❌ Erro ao processar áudio:', e.message);
