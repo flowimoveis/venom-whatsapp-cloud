@@ -89,6 +89,8 @@ async function startBot() {
     const imageBuffer = new Map();
 
     client.onMessage(async message => {
+    console.log('📩 RECEBENDO UMA NOVA MENSAGEM...');
+    console.log('🚀 Versão: 2025-05-22-AUDIO-LOG ATIVO');
       ultimoEvento = Date.now();
       const from = message.from;
       console.dir(message, { depth: null, colors: true });
