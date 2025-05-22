@@ -141,37 +141,40 @@ async function startBot() {
       if (type === 'chat') {
         text = message.body;
 
-} else if (type === 'ptt') {
-  try {
-    const media = await client.decryptFile(message);
-    const buffer = Buffer.from(media.data, 'base64');
+      } else if (type === 'ptt') {
+        try {
+          const media = await client.decryptFile(message);
+          const buffer = Buffer.from(media.data, 'base64');
 
-    const form = new FormData();
-    form.append('file', buffer, 'audio.ogg');
-    form.append('model', 'whisper-1');
-    form.append('response_format', 'text');
+          const form = new FormData();
+          form.append('file', buffer, 'audio.ogg');
+          form.append('model', 'whisper-1');
+          form.append('response_format', 'text');
 
-    const resp = await axios.post(
-      'https://api.openai.com/v1/audio/transcriptions',
-      form,
-      {
-        headers: {
-          ...form.getHeaders(),
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-      }
-    );
+          const resp = await axios.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            form,
+            {
+              headers: {
+                ...form.getHeaders(),
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              },
+            }
+          );
 
-    if (resp.data && typeof resp.data === 'string' && resp.data.trim()) {
-      text = resp.data.trim();
-    } else {
-      console.warn('⚠️ Whisper retornou vazio ou inválido.');
-      return;
-    }
-  } catch (e) {
-    console.error('❌ Transcrição falhou:', e.message);
-    return;
-  }
+          if (resp.data && typeof resp.data === 'string' && resp.data.trim()) {
+            text = resp.data.trim();
+          } else {
+            console.warn('⚠️ Whisper retornou vazio ou inválido.');
+            return;
+          }
+        } catch (e) {
+          console.error('❌ Transcrição falhou:', e.message);
+          return;
+        }
+
+      } else if ((message.isMedia || type === 'image') && message.caption) {
+        text = message.caption.trim();
 
       } else if (message.isMedia || type === 'image') {
         try {
@@ -203,17 +206,17 @@ async function startBot() {
           console.error('❌ Erro ao processar imagem:', e.message);
         }
         return;
+
       } else {
         console.log(`⚠️ Tipo "${type}" ignorado.`);
         return;
       }
 
-      if (!text) {
-        console.log('⚠️ Texto vazio. Ignorado.');
-        return;
+      if (text && text.trim()) {
+        console.log(`📨 De ${from}: "${text}"`);
+      } else {
+        console.log(`📨 De ${from} – mensagem sem texto (type: ${type})`);
       }
-
-      console.log(`📨 De ${from}: "${text}"`);
 
       try {
         const res = await axios.post(
