@@ -93,8 +93,7 @@ async function startBot() {
       const from = message.from;
 
       // Abordagem genérica para preview: tenta várias propriedades antes de fallback
-      const preview = [message.body, message.caption, message.content, message.text]
-        .filter(Boolean)[0] || `<${message.type} recebido>`;
+      const preview = message.body ?? message.caption ?? `<${message.type} recebido>`;
       console.log(`🔔 Mensagem de ${from} [${message.type}]: ${preview}`);
 
       // Texto puro
