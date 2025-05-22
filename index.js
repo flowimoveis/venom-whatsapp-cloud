@@ -93,11 +93,14 @@ async function startBot() {
       const from = message.from;
 
       // Abordagem genérica para preview: tenta várias propriedades antes de fallback
-const preview = message.body 
-  ?? message.caption 
-  ?? `<${message.type} recebido>`;
-console.log(`🔔 De ${from} [${message.type}]: ${preview}`);
+const preview =
+  message.body?.slice?.(0, 50) ||
+  message.caption?.slice?.(0, 50) ||
+  (message.type === 'ptt' ? '[Áudio de voz]' :
+   message.type === 'image' ? '[Imagem]' :
+   `[${message.type} recebido]`);
 
+console.log(`🔔 Mensagem recebida: ${from} → ${preview}`);
 
       // Texto puro
 if (message.type === 'chat') {
