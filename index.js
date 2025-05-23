@@ -53,15 +53,26 @@ app.listen(PORT, () => console.log(`🚀 Servindo na porta ${PORT}`));
 // Inicialização do bot
 async function startBot() {
   try {
-    const client = await venom.create({
-      session: SESSION_NAME,
-      multidevice: true,
-      headless: 'new',
-      disableSpins: true,
-      disableWelcome: true,
-      autoClose: 0,
-    });
-    global.client = client;
+const client = await venom.create({
+  session: SESSION_NAME,
+  multidevice: true,
+  headless: 'new',
+  disableSpins: true,
+  disableWelcome: true,
+  autoClose: 0,
+  browserArgs: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process',
+    '--disable-gpu'
+  ],
+  executablePath: '/usr/bin/google-chrome-stable',
+});
+
     console.log('✅ Bot pronto.');
 
     // Heartbeat e watchdog de 15 min
