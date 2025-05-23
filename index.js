@@ -1,8 +1,9 @@
 // index.js – Servidor Express + Bot WhatsApp (texto, áudio e imagens)
+// index.js – Servidor Express + Bot WhatsApp (texto, áudio e imagens)
 require('dotenv').config();
 process.env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/google-chrome-stable';
 process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
-require('dotenv').config();
+
 const express = require('express');
 const venom = require('venom-bot');
 const axios = require('axios');
@@ -10,6 +11,7 @@ const FormData = require('form-data');
 
 const SESSION_NAME = 'bot-session';
 const { N8N_WEBHOOK_URL, PORT = 3000, OPENAI_API_KEY } = process.env;
+
 
 // Validações iniciais
 if (!N8N_WEBHOOK_URL) {
