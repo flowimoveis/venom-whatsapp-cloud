@@ -1,5 +1,8 @@
 // index.js – Servidor Express + Bot WhatsApp (texto, áudio e imagens)
 require('dotenv').config();
+process.env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/google-chrome-stable';
+process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
+require('dotenv').config();
 const express = require('express');
 const venom = require('venom-bot');
 const axios = require('axios');
