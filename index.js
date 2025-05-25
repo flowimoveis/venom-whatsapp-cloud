@@ -55,29 +55,30 @@ app.listen(PORT, () => console.log(`🚀 Servindo na porta ${PORT}`));
 // Inicialização do bot
 async function startBot() {
   try {
-const client = await venom.create({
-  session: SESSION_NAME,
-  multidevice: true,
-  headless: 'new',
-  disableSpins: true,
-  disableWelcome: true,
-  autoClose: 0,
-  browserArgs: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run',
-    '--no-zygote',
-    '--single-process',
-    '--disable-gpu'
-  ],
-  executablePath: '/usr/bin/google-chrome-stable',
-});
-
+    // 1) Cria o client e guarda em global.client
+    const client = await venom.create({
+      session: SESSION_NAME,
+      multidevice: true,
+      headless: 'new',
+      disableSpins: true,
+      disableWelcome: true,
+      autoClose: 0,
+      browserArgs: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ],
+      executablePath: '/usr/bin/google-chrome-stable',
+    });
+    global.client = client;
     console.log('✅ Bot pronto.');
 
-    // Heartbeat e watchdog de 15 min
+    // 2) Heartbeat e watchdog de 15 min
     let ultimoEvento = Date.now();
     setInterval(async () => {
       try {
@@ -89,6 +90,7 @@ const client = await venom.create({
       if (Date.now() - ultimoEvento > 15 * 60 * 1000) process.exit(1);
     }, 5 * 60 * 1000);
 
+    // 3) Trata mudança de estado
     client.onStateChange(state => {
       const icons = {
         CONNECTED: '✅',
@@ -102,125 +104,88 @@ const client = await venom.create({
         client.restartService().catch(() => process.exit(1));
     });
 
+    // 4) Buffer para agrupamento de imagens
     const imageBuffer = new Map();
 
+    // 5) Handler de mensagens
     client.onMessage(async message => {
-    console.log('📩 RECEBENDO UMA NOVA MENSAGEM...');
-    console.log('🚀 Versão: 2025-05-22-AUDIO-LOG ATIVO');
+      
+      console.log('📩 RECEBENDO UMA NOVA MENSAGEM...');
       ultimoEvento = Date.now();
       const from = message.from;
-      console.dir(message, { depth: null, colors: true });
-      console.log('📨 Tipo:', message.type);
-      console.log('📨 Mimetype:', message.mimetype);
-      console.log('📨 isMedia:', message.isMedia);
-      console.log('📨 hasMedia:', message.mediaData?.type);
-
-
-      // Abordagem genérica para preview: tenta várias propriedades antes de fallback
-let preview = '[sem conteúdo]';
-if (message.body) {
-  preview = message.body.slice(0, 50);
-} else if (message.caption) {
-  preview = message.caption.slice(0, 50);
-} else if (message.type === 'audio') {
-  preview = '[Áudio recebido]';
-} else if (message.type === 'image') {
-  preview = '[Imagem recebida]';
-} else {
-  preview = `[${message.type} recebido]`;
-}
-
-console.log(`🔔 Mensagem recebida: ${from} → ${preview}`);
+      const tipo = message.type;
+      console.log(`📨 Tipo: ${tipo}`, `📨 Mimetype: ${message.mimetype}`, `📨 MediaType: ${message.mediaData?.type}`);
 
       // Texto puro
-if (message.type === 'chat') {
-  const text = message.body.trim();
-  await sendToN8n({
-    telefone: from,
-    type: 'text',
-    mensagem: text,
-  });
-  return;
-}
+      if (tipo === 'chat') {
+        const payload = { telefone: from, type: 'text', mensagem: message.body.trim() };
+        console.log('▶️ Payload n8n:', JSON.stringify(payload, null, 2));
+        await sendToN8n(payload);
+        return;
+      }
 
-      // Áudio (ptt ou outro áudio)
-      if (
-  (message.type === 'ptt' || message.type === 'audio') &&
-  message.mimetype?.includes('audio')
-) {
+      // Áudio (ptt ou audio)
+      if ((tipo === 'ptt' || tipo === 'audio') && message.mimetype?.includes('audio')) {
         try {
-          const media = await client.decryptFile(message);
-if (!media || !media.data) {
-  console.error('⚠️ Não foi possível decodificar o áudio.');
-  return;
-}
-
-          const buffer = Buffer.from(media.data, 'base64');
-          // Transcrição com Whisper
+          const mediaBase64 = await client.decryptFile(message);
+          const buffer = Buffer.from(mediaBase64, 'base64');
           const form = new FormData();
           form.append('file', buffer, 'audio.ogg');
           form.append('model', 'whisper-1');
           form.append('response_format', 'text');
+
           const resp = await axios.post(
             'https://api.openai.com/v1/audio/transcriptions',
             form,
             { headers: { ...form.getHeaders(), Authorization: `Bearer ${OPENAI_API_KEY}` } }
           );
           const transcription = resp.data?.trim() || '';
-console.log(`📝 Transcrição: "${transcription}"`);
+          console.log(`📝 Transcrição: "${transcription}"`);
 
-          // Envia áudio e transcrição
-          await sendToN8n({
-  telefone: from,
-  type: 'audio',
-  mensagem: transcription,
-  textoTranscrito: transcription,
-  audio: buffer.toString('base64'),
-});
-
-          console.log('✅ Áudio e transcrição enviados.');
+          const payload = {
+            telefone: from,
+            type: 'audio',
+            mensagem: transcription,
+            textoTranscrito: transcription,
+            audio: mediaBase64,
+          };
+          console.log('▶️ Payload n8n:', JSON.stringify(payload, null, 2));
+          await sendToN8n(payload);
+          console.log('✅ Áudio enviado ao n8n.');
         } catch (e) {
-          console.error('❌ Erro ao processar áudio:', e.message);
+          console.error('❌ Erro ao processar áudio:', e);
         }
         return;
       }
 
       // Imagem (agrupamento)
-      if (message.isMedia && message.mimetype?.startsWith('image/')) {
+      if (message.mediaData?.type === 'image' || tipo === 'image') {
         try {
-          const media = await client.decryptFile(message);
+          const mediaBase64 = await client.decryptFile(message);
           const entry = imageBuffer.get(from) || [];
           entry.push({
             filename: message.filename || `${Date.now()}`,
             mimetype: message.mimetype,
-            base64: media.toString('base64'),
+            base64: mediaBase64,
           });
           imageBuffer.set(from, entry);
           clearTimeout(entry._timeout);
           entry._timeout = setTimeout(async () => {
-            await sendToN8n({ telefone: from, type: 'imagens', imagens: entry });
+            const payload = { telefone: from, type: 'imagens', imagens: entry };
+            console.log('▶️ Payload n8n:', JSON.stringify(payload, null, 2));
+            await sendToN8n(payload);
             imageBuffer.delete(from);
             console.log('✅ Imagens agrupadas enviadas.');
           }, 7000);
         } catch (err) {
-          console.error('❌ Erro ao processar imagem:', err.message);
+          console.error('❌ Erro ao processar imagem:', err);
         }
         return;
       }
 
-      // Outros tipos são ignorados
-      console.log(`⚠️ Ignorado tipo: ${message.type}`);
+      // Outros tipos
+      console.log(`⚠️ Ignorado tipo: ${tipo}`);
     });
-
-    // Helper de envio ao n8n
-    async function sendToN8n(payload) {
-      try {
-        const res = await axios.post(N8N_WEBHOOK_URL, payload, { timeout: 10000 });
-        console.log(`✅ Enviado ao n8n (status ${res.status}).`);
-      } catch (err) {
-        console.error('❌ Falha no envio ao n8n:', err.message);
-      }
-    }
 
   } catch (err) {
     console.error('❌ Falha na inicialização do bot:', err);
@@ -229,3 +194,4 @@ console.log(`📝 Transcrição: "${transcription}"`);
 }
 
 startBot();
+
