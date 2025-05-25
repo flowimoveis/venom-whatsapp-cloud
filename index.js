@@ -1,5 +1,4 @@
 // index.js – Servidor Express + Bot WhatsApp (texto, áudio e imagens)
-// index.js – Servidor Express + Bot WhatsApp (texto, áudio e imagens)
 require('dotenv').config();
 process.env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/google-chrome-stable';
 process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
@@ -11,7 +10,6 @@ const FormData = require('form-data');
 
 const SESSION_NAME = 'bot-session';
 const { N8N_WEBHOOK_URL, PORT = 3000, OPENAI_API_KEY } = process.env;
-
 
 // Validações iniciais
 if (!N8N_WEBHOOK_URL) {
@@ -52,10 +50,24 @@ async function sendHandler(req, res) {
 app.route('/send').get(sendHandler).post(sendHandler);
 app.listen(PORT, () => console.log(`🚀 Servindo na porta ${PORT}`));
 
+// Helper para enviar payloads ao n8n
+async function sendToN8n(payload) {
+  if (!N8N_WEBHOOK_URL) {
+    console.error('❌ N8N_WEBHOOK_URL não definido, não é possível enviar ao n8n.');
+    return;
+  }
+  try {
+    await axios.post(N8N_WEBHOOK_URL, payload);
+    console.log('✅ Payload enviado ao n8n');
+  } catch (err) {
+    console.error('❌ Falha ao enviar para o n8n:', err.message);
+  }
+}
+
 // Inicialização do bot
 async function startBot() {
   try {
-    // 1) Cria o client e guarda em global.client
+    // Cria o client e guarda em global.client
     const client = await venom.create({
       session: SESSION_NAME,
       multidevice: true,
@@ -73,12 +85,12 @@ async function startBot() {
         '--single-process',
         '--disable-gpu'
       ],
-      executablePath: '/usr/bin/google-chrome-stable',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
     });
     global.client = client;
     console.log('✅ Bot pronto.');
 
-    // 2) Heartbeat e watchdog de 15 min
+    // Heartbeat e watchdog de 15 min
     let ultimoEvento = Date.now();
     setInterval(async () => {
       try {
@@ -90,7 +102,7 @@ async function startBot() {
       if (Date.now() - ultimoEvento > 15 * 60 * 1000) process.exit(1);
     }, 5 * 60 * 1000);
 
-    // 3) Trata mudança de estado
+    // Trata mudança de estado
     client.onStateChange(state => {
       const icons = {
         CONNECTED: '✅',
@@ -104,12 +116,11 @@ async function startBot() {
         client.restartService().catch(() => process.exit(1));
     });
 
-    // 4) Buffer para agrupamento de imagens
+    // Buffer para agrupamento de imagens
     const imageBuffer = new Map();
 
-    // 5) Handler de mensagens
+    // Handler de mensagens
     client.onMessage(async message => {
-      
       console.log('📩 RECEBENDO UMA NOVA MENSAGEM...');
       ultimoEvento = Date.now();
       const from = message.from;
@@ -194,4 +205,3 @@ async function startBot() {
 }
 
 startBot();
-
